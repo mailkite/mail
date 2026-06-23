@@ -49,6 +49,16 @@ export interface MessageRow {
 
 export type Folder = 'inbox' | 'starred' | 'archive'
 
+export type Role = 'admin' | 'user'
+
+export interface UserRow {
+  id: string
+  email: string
+  password_hash: string
+  role: Role
+  created_at: number
+}
+
 export interface MessageFlags {
   unread?: boolean
   starred?: boolean

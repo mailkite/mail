@@ -59,4 +59,19 @@ CREATE TABLE IF NOT EXISTS ingest_log (
   id          TEXT PRIMARY KEY,
   received_at INTEGER NOT NULL
 );
+
+-- Roles + admin-gated dashboard.
+CREATE TABLE IF NOT EXISTS users (
+  id            TEXT PRIMARY KEY,
+  email         TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role          TEXT NOT NULL DEFAULT 'user',
+  created_at    INTEGER NOT NULL
+);
+
+-- Operator-saved config (env-first; this is the DB fallback). Secrets included.
+CREATE TABLE IF NOT EXISTS settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 `

@@ -22,19 +22,26 @@ This is the sequencing doc. *What* we're building and *why* live in the companio
 
 ## 2. Phases at a glance
 
-| # | Phase | Track | Delivers | Depends on |
-|---|---|---|---|---|
-| 0 | Scaffold & foundations | web | Workspaces monorepo that builds & runs empty | — |
-| 1 | Ingest slice | backend | A real webhook lands in the own store | 0 |
-| 2 | Read UI | web | Browse/read real mail in the browser | 1 |
-| 3 | Compose & reply | web | Reply that threads correctly | 2 |
-| 4 | Organize & search | web | The full V1 inbox (labels, search, shortcuts) | 3 |
-| 4.5 | Admin & Setup dashboard | web+backend | Roles (admin/user), admin-only Settings/Setup, config surfacing | 3 |
-| 5 | Workers target + deploy | backend | Hosted on `mailn.app` (Workers + D1 + R2) | 1–4 |
-| 6 | PWA | web | Installable app, push notifications | 2 (4 ideal) |
-| 7 | Desktop (Tauri 2) | desktop | Signed macOS/Windows/Linux installers | 4 |
-| 8 | Mobile (Tauri 2) | mobile | iOS + Android test-track builds | 4, 7 |
-| 9 | Hardening & OSS launch | all | Self-host story, CI releases, public launch | 5–8 |
+Status — `✅ done` (built & tested) · `🚧 in progress` · `⬜ not started` (as of 2026-06-23).
+
+| # | Phase | Status | Track | Delivers | Depends on |
+|---|---|---|---|---|---|
+| 0 | Scaffold & foundations | ✅ | web | Workspaces monorepo that builds & runs empty | — |
+| 1 | Ingest slice | ✅ | backend | A real webhook lands in the own store | 0 |
+| 2 | Read UI | 🚧 | web | Browse/read real mail in the browser | 1 |
+| 3 | Compose & reply | ✅ (backend) | web | Reply that threads correctly | 2 |
+| 4 | Organize & search | 🚧 | web | The full V1 inbox (labels, search, shortcuts) | 3 |
+| 4.5 | Admin & Setup dashboard | ✅ (backend) | web+backend | Roles (admin/user), admin-only Settings/Setup, config surfacing | 3 |
+| 5 | Workers target + deploy | ⬜ | backend | Hosted on `mailn.app` (Workers + D1 + R2) | 1–4 |
+| 6 | PWA | ⬜ | web | Installable app, push notifications | 2 (4 ideal) |
+| 7 | Desktop (Tauri 2) | ⬜ | desktop | Signed macOS/Windows/Linux installers | 4 |
+| 8 | Mobile (Tauri 2) | ⬜ | mobile | iOS + Android test-track builds | 4, 7 |
+| 9 | Hardening & OSS launch | ⬜ | all | Self-host story, CI releases, public launch | 5–8 |
+
+> **Backend ahead of UI:** the Phase 3/4.5 server routes (`/api/send`, auth, admin config) are built
+> and covered by tests in `apps/web/test` and `packages/core/test`; the matching SPA screens are the
+> remaining 🚧 work. The whole API surface is documented in [`auth.md`](auth.md) and
+> [`admin-dashboard.md`](admin-dashboard.md).
 
 **Critical path:** 0 → 1 → 2 → 3 → 4 → 4.5, then 5/6/7 can run in parallel, 8 after 7. (User **roles** and the **admin-only** Settings/Setup dashboard land in 4.5 — see [`admin-dashboard.md`](admin-dashboard.md).)
 
@@ -61,7 +68,7 @@ This is the sequencing doc. *What* we're building and *why* live in the companio
 - `packages/ui`: app shell (sidebar + list + reading pane), inbox list, conversation/thread view, message reader.
 - **Safe HTML rendering:** sanitize, proxy remote images, link handling, CSP — the security work from [`architecture.md`](architecture.md).
 - `apps/web` local `/api/*`: list messages, get thread/message, serve rehosted attachments.
-- Auth: session cookie (`SESSION_SECRET`), login screen. TanStack Router + Query wired.
+- Auth: HMAC-signed session cookie (`SESSION_SECRET`), login screen — the as-built model is in [`auth.md`](auth.md). TanStack Router + Query wired.
 - **Exit:** log in and read real, correctly-threaded mail with working attachments.
 
 ### Phase 3 — Compose & reply
@@ -81,6 +88,7 @@ This is the sequencing doc. *What* we're building and *why* live in the companio
 - **Admin gate:** `requireAdmin` middleware on `/api/admin/*` and the dashboard route; non-admins get 403. Bootstrapped by `ADMIN_PASSWORD` env, or a **first-run setup wizard** that creates the admin (hashed in the store).
 - **Config surfacing:** admin Settings shows each item's status — ✅ from env / ✅ saved / ⚠️ missing (secrets masked) — with inputs to save the non-platform ones.
 - **Env-first resolution:** `env var → saved DB setting → unset`; unset → the feature **disables** via the capability gate. Same on Workers and VPS.
+- **Auth:** PBKDF2 passwords + HMAC-signed session cookies + `requireAuth`/`requireAdmin` — see [`auth.md`](auth.md).
 - See [`admin-dashboard.md`](admin-dashboard.md).
 - **Exit:** a fresh deploy walks an admin through setup; missing keys disable their features and are visible in Settings.
 

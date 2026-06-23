@@ -77,10 +77,15 @@ shells, each a thin client pointed at a configured backend URL:
          none receive the webhook; all point at a configured backend URL)
 ```
 
-The receiver (`POST /webhook`) is **HMAC-verified and never JWT-authed**. The read/reply routes
-(`/api/*`) are **JWT-authed and never HMAC-verified**. These two route groups stay strictly separate
+The receiver (`POST /webhook`) is **HMAC-verified and never session-authed**. The read/reply routes
+(`/api/*`) are **session-authed and never HMAC-verified**. These two route groups stay strictly separate
 on the backend; neither accepts the other's data. The clients only ever see `/api/*` — they never
 see `/webhook`, the store, or any secret.
+
+> **As built:** the `/api/*` routes authenticate with **HTTP-only, HMAC-signed session cookies**, not
+> the Bearer JWT this doc's older diagrams show. The shipped model — primitives, cookie attributes,
+> middleware, endpoints, and bootstrap — is documented in [`auth.md`](auth.md), which supersedes the
+> JWT language here. (Cross-origin bearer auth is revisited if the Tauri shells need it; Phases 7–8.)
 
 See [`platforms.md`](platforms.md) for the one-codebase / many-shells client strategy,
 [`repo-structure.md`](repo-structure.md) for the workspaces layout, and [`stack.md`](stack.md) for the

@@ -1,4 +1,4 @@
-import type { WebhookPayload, MessageRow, MessageFlags, ListOptions } from '../types'
+import type { WebhookPayload, MessageRow, MessageFlags, ListOptions, UserRow } from '../types'
 import { mapWebhookToMessage } from '../webhook/map'
 import type { SqlDriver, BlobStore } from './ports'
 import { SCHEMA_SQL } from './schema'
@@ -104,5 +104,37 @@ export class MailRepo {
     if (sets.length === 0) return
     params.push(id)
     await this.sql.run(`UPDATE messages SET ${sets.join(', ')} WHERE id = ?`, params)
+  }
+
+  // ---- Settings (operator-saved config; env-first fallback) ----------------
+
+  async getSetting(key: string): Promise<string | undefined> {
+    const row = await this.sql.get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [key])
+    return row?.value
+  }
+
+  async setSetting(key: string, value: string): Promise<void> {
+    await this.sql.run(
+      'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      [key, value],
+    )
+  }
+
+  // ---- Users & roles -------------------------------------------------------
+
+  async countUsers(): Promise<number> {
+    const row = await this.sql.get<{ n: number }>('SELECT COUNT(*) AS n FROM users')
+    return row?.n ?? 0
+  }
+
+  async getUserByEmail(email: string): Promise<UserRow | undefined> {
+    return this.sql.get<UserRow>('SELECT * FROM users WHERE email = ?', [email])
+  }
+
+  async createUser(u: UserRow): Promise<void> {
+    await this.sql.run(
+      'INSERT INTO users (id, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)',
+      [u.id, u.email, u.password_hash, u.role, u.created_at],
+    )
   }
 }
