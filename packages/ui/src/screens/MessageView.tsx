@@ -1,8 +1,16 @@
 import { useMemo } from 'react'
+import { Reply } from 'lucide-react'
 import type { MessageRow } from '@mailkite/core'
 import { sanitizeEmailHtml } from '../lib/sanitize'
+import { Button } from '../components/Button'
 
-export function MessageView({ message }: { message: MessageRow | null }) {
+export function MessageView({
+  message,
+  onReply,
+}: {
+  message: MessageRow | null
+  onReply?: (m: MessageRow) => void
+}) {
   const html = useMemo(
     () => (message?.html_body ? sanitizeEmailHtml(message.html_body) : null),
     [message],
@@ -19,7 +27,12 @@ export function MessageView({ message }: { message: MessageRow | null }) {
   return (
     <article className="h-full overflow-y-auto">
       <header className="border-b border-[var(--color-border)] px-6 py-4">
-        <h1 className="text-lg font-semibold">{message.subject ?? '(no subject)'}</h1>
+        <div className="flex items-start justify-between gap-4">
+          <h1 className="text-lg font-semibold">{message.subject ?? '(no subject)'}</h1>
+          <Button onClick={() => onReply?.(message)}>
+            <Reply size={16} /> Reply
+          </Button>
+        </div>
         <div className="mt-1 text-sm text-[var(--color-muted)]">
           <span className="text-[var(--color-text)]">{message.from_addr}</span> → {message.to_addr}
         </div>

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Inbox, Moon, Sun, Send, Archive, Star } from 'lucide-react'
+import { Inbox, Moon, Sun, Send, Archive, Star, PenSquare } from 'lucide-react'
 import { useTheme } from '../theme/ThemeProvider'
 import { Button } from '../components/Button'
 
@@ -10,7 +10,7 @@ const NAV = [
   { icon: Archive, label: 'Archive' },
 ]
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, onCompose }: { children: ReactNode; onCompose?: () => void }) {
   const { resolved, setMode } = useTheme()
   return (
     <div className="h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
@@ -28,6 +28,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
       <div className="flex flex-1 min-h-0">
         <nav className="w-48 shrink-0 border-r border-[var(--color-border)] p-2 space-y-0.5">
+          <Button className="mb-2 w-full justify-center" onClick={onCompose}>
+            <PenSquare size={16} /> Compose
+          </Button>
           {NAV.map(({ icon: Icon, label, active }) => (
             <button
               key={label}
