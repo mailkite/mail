@@ -1,0 +1,35 @@
+{
+  // MailKite Mail — Workers deploy. The Worker owns /api/* and /webhook; the
+  // built SPA in ./dist is served by the assets binding (SPA fallback on miss).
+  //
+  // One-time setup (see docs/deploy.md):
+  //   wrangler d1 create mailkite-mail        # paste database_id below
+  //   wrangler r2 bucket create mailkite-mail-attachments
+  //   npm run db:migrate                       # apply migrations/ to D1
+  //   wrangler secret put SESSION_SECRET       # + MAILKITE_API_KEY / _WEBHOOK_SECRET
+  //   npm run deploy
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mailkite-mail",
+  "main": "src/worker.ts",
+  "compatibility_date": "2025-06-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mailkite-mail",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BLOBS",
+      "bucket_name": "mailkite-mail-attachments"
+    }
+  ],
+  "observability": { "enabled": true }
+}

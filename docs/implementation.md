@@ -32,7 +32,7 @@ Status — `✅ done` (built & tested) · `🚧 in progress` · `⬜ not started
 | 3 | Compose & reply | ✅ (backend) | web | Reply that threads correctly | 2 |
 | 4 | Organize & search | 🚧 | web | The full V1 inbox (labels, search, shortcuts) | 3 |
 | 4.5 | Admin & Setup dashboard | ✅ (backend) | web+backend | Roles (admin/user), admin-only Settings/Setup, config surfacing | 3 |
-| 5 | Workers target + deploy | ⬜ | backend | Hosted on `mailn.app` (Workers + D1 + R2) | 1–4 |
+| 5 | Workers target + deploy | ✅ (code) | backend | Hosted on `mailn.app` (Workers + D1 + R2) | 1–4 |
 | 6 | PWA | ⬜ | web | Installable app, push notifications | 2 (4 ideal) |
 | 7 | Desktop (Tauri 2) | ⬜ | desktop | Signed macOS/Windows/Linux installers | 4 |
 | 8 | Mobile (Tauri 2) | ⬜ | mobile | iOS + Android test-track builds | 4, 7 |
@@ -94,10 +94,10 @@ Status — `✅ done` (built & tested) · `🚧 in progress` · `⬜ not started
 
 ### Phase 5 — Workers target + deploy
 **Goal:** the same app live on `mailn.app`, server-side on Cloudflare.
-- Second storage impl behind the adapter: **D1** `SqlDriver` + **R2** `BlobStore`; D1 migrations.
-- `apps/web` on Workers: `assets` binding (SPA) + Hono fetch handler; `wrangler.jsonc`.
-- Deploy to `mailn.app`; point a MailKite route's webhook at the production `/webhook`.
-- **Exit:** hosted inbox works end-to-end on Workers, identical behavior to Node.
+- ✅ Second storage impl behind the adapter: **D1** `SqlDriver` (`D1Driver`) + **R2** `BlobStore` (`R2BlobStore`), via `@mailkite/core/server/workers`. MailRepo unchanged — providers swap behind the ports.
+- ✅ `apps/web` on Workers: `assets` binding (SPA) + `worker.ts` fetch handler (owns `/api/*` + `/webhook`); `wrangler.jsonc`; D1 migrations in `apps/web/migrations/` (drift-tested against `SCHEMA_SQL`).
+- ⬜ **Deploy step (operator):** `wrangler d1 create` + `r2 bucket create` + secrets, then `npm run deploy` — see [`deploy.md`](deploy.md). Point a MailKite route's webhook at the production `/webhook`.
+- **Exit:** hosted inbox works end-to-end on Workers, identical behavior to Node. (Code + migrations ready and tested in Node; the Cloudflare provision/deploy is the remaining operator action.)
 
 ### Phase 6 — PWA
 **Goal:** installable app + notifications, no app store.
