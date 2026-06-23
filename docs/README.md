@@ -1,6 +1,6 @@
 # MailKite Mail — Docs
 
-> **One-liner:** Design docs for **MailKite Mail** — the open-source, webhook-driven webmail client (repo dir `./webmail`, package `@mailkite/mail`, hosted at [mailn.app](https://mailn.app)) that ingests mail from MailKite's webhook into its **own** SQLite/D1 store and sends replies through MailKite's `/v1/send`, never touching MailKite's internal database.
+> **One-liner:** Design docs for **MailKite Mail** — the open-source, webhook-driven webmail client (standalone repo `mailkite/mail`, package `@mailkite/mail`, hosted at [mailn.app](https://mailn.app)) that ingests mail from MailKite's webhook into its **own** SQLite/D1 store and sends replies through MailKite's `/v1/send`, never touching MailKite's internal database. It is a pnpm + Turborepo workspaces monorepo shipping one React UI across web, desktop, and mobile — see [`platforms.md`](platforms.md) and [`repo-structure.md`](repo-structure.md).
 
 MailKite Mail is the human-facing inbox for webhook email: browse, search, thread, and reply to mail
 that arrives as `email.received` payloads — no IMAP, no POP, no mail server. It is one [Hono](https://hono.dev)
@@ -15,11 +15,13 @@ Start with [`00-overview.md`](00-overview.md), then read in the order below.
 | Doc | What's inside |
 |---|---|
 | [00-overview.md](00-overview.md) | **Start here** — what MailKite Mail is, the elevator pitch, audience tiers, goals, explicit non-goals (no IMAP/POP/SMTP-receive), the two-seam boundary, and the OSS → hosted `mailn.app` funnel. |
-| [features.md](features.md) | The product surface — the three things free from the webhook (`threadId`, `auth.*`, spam), design principles, the V1/V2/Later feature inventory, the cc/bcc/headers gap, and the deliberate "what we don't build" list. |
-| [stack.md](stack.md) | The technical stack — React/Vite/TanStack/shadcn/Tailwind 4 frontend with lifted brand tokens, the Hono backend routes, the dual Workers (`assets` + D1) / Node (`@hono/node-server` + SQLite) target, and copy-pasteable `wrangler.jsonc` + `package.json`. |
-| [architecture.md](architecture.md) | The runtime shape — the end-to-end flow, the HMAC-verified `POST /webhook` receiver (raw-body + ms-timestamp gotchas, idempotent dedupe), reading/threading, the `/api/send` → `/v1/send` reply path, untrusted-HTML safety, attachment rehosting, and the JWT auth model. |
-| [data-model.md](data-model.md) | The own-store persistence layer — the portable SQLite/D1 schema (every `CREATE TABLE`), the `SqlDriver`/`BlobStore`/`MailRepo` adapter seam, the migration approach, idempotent ingest, and the webhook-field → local-column mapping. |
-| [install.md](install.md) | The OSS self-host guide — Node/Docker/Workers quickstarts, the two required MailKite secrets (API key + `whsec_*`), env-var config, webhook wiring (prod proxy + dev tunnels), persistence/backup, and upgrading. |
+| [features.md](features.md) | The product surface — the three things free from the webhook (`threadId`, `auth.*`, spam), design principles, the V1/V2/Later feature inventory, per-shell native-capability availability, the cc/bcc/headers gap, and the deliberate "what we don't build" list. |
+| [stack.md](stack.md) | The technical stack — the pnpm + Turborepo workspaces monorepo, React/Vite/TanStack/shadcn/Tailwind 4 frontend with lifted brand tokens, the Hono backend routes, the dual Workers (`assets` + D1) / Node (`@hono/node-server` + SQLite) target, and copy-pasteable `wrangler.jsonc` + `package.json`. |
+| [architecture.md](architecture.md) | The runtime shape — the thin-client model (what lives where), the end-to-end flow, the HMAC-verified `POST /webhook` receiver (raw-body + ms-timestamp gotchas, idempotent dedupe), reading/threading, the `/api/send` → `/v1/send` reply path, untrusted-HTML safety, attachment rehosting, and the JWT auth model. |
+| [data-model.md](data-model.md) | The own-store persistence layer (server-side) — the portable SQLite/D1 schema (every `CREATE TABLE`), the `SqlDriver`/`BlobStore`/`MailRepo` adapter seam in `@mailkite/core/server`, the migration approach, idempotent ingest, and the webhook-field → local-column mapping. |
+| [platforms.md](platforms.md) | One React SPA, many thin shells — the four targets (web/PWA/desktop/mobile), why Tauri 2 (vs Electron and Capacitor), how each native capability is wired through the `PlatformAdapter`, the installable PWA + Web Push baseline, and the app-store + signing realities. |
+| [repo-structure.md](repo-structure.md) | The workspaces monorepo map — the full directory tree, package boundaries (apps → `ui` → `core`), the client/server `exports` split, the pnpm + Turborepo tooling (`pnpm-workspace.yaml`/`.npmrc`/`turbo.json`), per-app config seams, and the 4-artifact build/release/CI matrix. |
+| [install.md](install.md) | The OSS self-host guide — Node/Docker/Workers quickstarts, the two required MailKite secrets (API key + `whsec_*`), env-var config, webhook wiring (prod proxy + dev tunnels), persistence/backup, the Tauri desktop/mobile + PWA shells, and upgrading. |
 
 ## Related platform docs
 

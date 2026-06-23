@@ -1,6 +1,6 @@
 # MailKite Mail — Data Model
 
-> **One-liner:** MailKite Mail keeps its **own** portable SQLite/D1 store, populated exclusively by the inbound webhook — one schema, two runtimes (D1 on Workers, SQLite on Node), never touching MailKite's internal database.
+> **One-liner:** MailKite Mail keeps its **own** portable, **server-side** SQLite/D1 store, populated exclusively by the inbound webhook — one schema (owned by `packages/core`), two runtimes (D1 on Workers, SQLite on Node), never touching MailKite's internal database; thin clients hold an **optional read cache only**, never the authoritative store.
 
 This doc defines the persistence layer: the storage decision, the schema (every `CREATE TABLE`), the one storage-adapter interface that makes the schema run on both targets, the migration approach, and the exact webhook-field → local-column mapping. Field names are aligned to the `email.received` webhook payload so ingest is a near-mechanical copy.
 
@@ -10,7 +10,9 @@ See [`stack.md`](stack.md) for the dual-target Hono/Vite runtime, and the webhoo
 
 ## 1. The decision
 
-> **Decision (2026-06): MailKite Mail keeps its OWN store, fed exclusively by the inbound webhook. It never reads or writes MailKite's internal D1. One portable SQL schema runs on Cloudflare D1 (hosted) and Node SQLite (self-host: `better-sqlite3` or `libsql`). A self-hoster needs only a MailKite API key + a webhook secret (`whsec_*`).**
+> **Decision (2026-06): MailKite Mail keeps its OWN store, fed exclusively by the inbound webhook. It never reads or writes MailKite's internal D1. The store is SERVER-SIDE — it lives in the `apps/web` backend (D1 on Workers, SQLite on Node), because only the server has a public HTTPS URL to receive `email.received` and may hold the `whsec_*` secret. One portable SQL schema (owned by `packages/core`) runs on Cloudflare D1 (hosted) and Node SQLite (self-host: `better-sqlite3` or `libsql`). A self-hoster needs only a MailKite API key + a webhook secret (`whsec_*`).**
+
+The store is **never** bundled into a desktop or mobile app. Tauri/PWA shells are **thin clients** that reach this store over `/api/*` (see [`platforms.md`](platforms.md)); they may keep an **optional, non-authoritative on-device read cache** (recent messages, settings) so the UI opens offline — but the server store is always canonical and the cache is rebuilt from `/api/*` on reconnect.
 
 The boundary is narrow and one-directional:
 
@@ -276,6 +278,13 @@ CREATE TABLE _migrations (
 
 ## 5. The storage-adapter interface (the portability seam)
 
+> **Home:** this whole adapter lives in **`packages/core/src/store`** of the workspaces monorepo
+> (`repo.ts`, `d1.ts`, `sqlite.ts`, `schema.sql`) and is consumed **only** by the server
+> (`apps/web`). It is framework-agnostic (no React) and ships behind the `@mailkite/core/server`
+> subpath export so the SPA / desktop / mobile webview bundles never pull in `node:*` or a SQL
+> driver. The thin clients reach the store only over `/api/*`. See
+> [`repo-structure.md`](repo-structure.md) §3.2 and [`platforms.md`](platforms.md) §1.
+
 This mirrors the platform's `interface Repo` + `makeRepo(env)` factory in `../../api/src/db/repo.ts`, but makes the SQL **executor** pluggable so the *same* repo runs on D1 and Node SQLite. Three layers.
 
 ### (A) `SqlDriver` — the only thing that differs per target
@@ -345,7 +354,7 @@ const repo = makeMailRepo(d1Driver(env.DB), r2BlobStore(env.MAIL_BUCKET));
 const repo = makeMailRepo(sqliteDriver(db), fsBlobStore('./data/blobs'));
 ```
 
-The Hono routes (webhook receiver + SPA-data endpoints) depend only on `MailRepo`, so the same `src/index.ts` boots on both targets. **That is the dual-target OSS install story** ([`stack.md`](stack.md)).
+The Hono routes (webhook receiver + SPA-data endpoints) in `apps/web` depend only on `MailRepo`, so the same `app.ts` boots on both targets. **That is the dual-target OSS install story** ([`stack.md`](stack.md)) — and because the store lives behind `/api/*`, the Tauri desktop/mobile shells reuse it untouched as thin clients ([`platforms.md`](platforms.md)).
 
 ---
 
@@ -460,12 +469,15 @@ The `email.received` payload (built by `buildWebhookPayload`, `../../api/src/ind
 | Drafts | reuse `messages` (`is_draft=1`) — one compose/send path | separate table (redundant) |
 | Threading headers | thread off `threadId` + normalized subject (no extra calls) | enrich via `GET /api/messages/:id` for full `headers_json` |
 | D1 sync/async | uniformly-async `SqlDriver` wraps sync `better-sqlite3` | — (resolved, not optional) |
+| Client read cache | none (always hit `/api/*`) | optional on-device cache in shells (Tauri `tauri-plugin-sql` / PWA cache) — **non-authoritative**, mirrors a slice of this server store ([`platforms.md`](platforms.md)) |
 
 ---
 
 ## 10. See also
 
 - [`00-overview.md`](00-overview.md) — what MailKite Mail is and the doc set.
+- [`repo-structure.md`](repo-structure.md) — where this adapter sits (`packages/core/src/server/store`) and the client/server `exports` split that keeps it off the clients.
+- [`platforms.md`](platforms.md) — how the thin clients reach this store over `/api/*`.
 - [`stack.md`](stack.md) — the dual-target Hono + Vite runtime.
 - [`../../api/migrations/0001_init.sql`](../../api/migrations/0001_init.sql), [`../../api/migrations/0003_attachments.sql`](../../api/migrations/0003_attachments.sql) — platform tables we map from.
 - [`../../api/src/db/repo.ts`](../../api/src/db/repo.ts) — the `Repo`/`makeRepo` pattern mirrored by `MailRepo`.

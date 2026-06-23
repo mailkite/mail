@@ -141,13 +141,32 @@ How-it-works tags: **Native** (we own the data / pure UI) · **Local-derived** (
 | Command palette (`Cmd+K`) | **Native.** Superhuman/Fastmail pattern; the primary discoverability surface — one palette beats memorizing 30 keys. | **V2** |
 | Full shortcut set | **Native.** `a` reply-all, `f` forward, `#` delete, `b` snooze, `s` star, `z` undo, `x` select, `g i/t/d/a` go-to views, `Cmd/Ctrl+Enter` send. | **V2** |
 
-### 3.9 Mobile / PWA
+### 3.9 Multi-platform (PWA · desktop · mobile)
+
+One React UI ships as four shells — Hono-served web + installable PWA, Tauri 2 desktop, and Tauri 2 mobile (iOS + Android) — all **thin clients** to the server-side backend. Full architecture in [`platforms.md`](platforms.md); feature tiers here.
 
 | Feature | Notes / how it works here | Tier |
 |---|---|---|
-| Responsive layout | **Native.** shadcn/Tailwind responsive: degrade 3-pane → list+detail. | **V2** |
-| PWA (installable, offline read) | **Native.** Offline reading is natural since mail is in our own store; offline-compose queue flushes to `/v1/send` on reconnect. | **Later** |
-| Push notifications | **Native** + Platform-dep-ish. We know at ingest time that mail arrived → fire Web Push (needs VAPID + subscription store). | **Later** |
+| Responsive layout | **Native.** shadcn/Tailwind responsive: degrade 3-pane → list+detail. | **V1** |
+| PWA (installable, offline read) | **Native.** The free baseline (`vite-plugin-pwa`). Offline read via SW precache + Query persistence; offline-compose queue flushes to `/v1/send` on reconnect. | **V2** |
+| Tauri 2 desktop app | **Native shell.** Bundles the SPA, points at a configured backend URL; OS notifications, deep links, tray badge, keychain token. | **V2** |
+| Tauri 2 mobile app (iOS + Android) | **Native shell.** Same SPA in WKWebView / Android System WebView; native push (APNs/FCM), deep links, app-icon badge, Keychain/Keystore token. | **Later** |
+| Push notifications | **Native** + one ingest seam ([§6](#6-architecture-levers)). Two impls behind one `PlatformAdapter`: **Web Push** (VAPID) on web/PWA; **native APNs/FCM** on Tauri mobile (WKWebView has no service workers). Fired at webhook ingest. | **V2** (web) / **Later** (native) |
+
+#### Platform availability of native capabilities
+
+Almost every feature in [§3](#3-feature-inventory) is **UI in the SPA**, so it runs identically on all four shells (browser, PWA, Tauri desktop, Tauri mobile) — the SPA is the same bundle everywhere ([`platforms.md`](platforms.md)). The table below covers only the handful of features that touch **native OS capabilities**, where availability differs by shell. These are injected through the `PlatformAdapter` interface (defined in `packages/core`), so [`packages/ui`](stack.md) stays platform-blind: the web build wires a Web adapter (Notifications API, `localStorage`, Web Push), the Tauri builds wire a Tauri adapter (OS plugins + keychain).
+
+| Native capability | Web (browser) | PWA (installed) | Desktop (Tauri 2) | Mobile (Tauri 2) | How |
+|---|---|---|---|---|---|
+| OS notifications | Notifications API | Notifications API | `tauri-plugin-notification` | `tauri-plugin-notification` (Android: create channel first) | One adapter, two impls. |
+| Push (new-mail alert) | Web Push (VAPID) | Web Push (VAPID); **iOS Safari requires home-screen install, 16.4+** | n/a (use local notification + poll) | **native APNs/FCM** (WKWebView has no service workers) | Fired from the one ingest seam ([§6](#6-architecture-levers)). |
+| Badge count (unread) | tab title only | tab title / limited | dock / taskbar overlay | app-icon badge | `app.setBadgeCount(n)` on native; Linux support is DE-dependent. |
+| Deep links (`mailkite://thread/:id`) | URL routing | URL routing | `tauri-plugin-deep-link` + single-instance | `tauri-plugin-deep-link` (associated domains / app links) | Routes into TanStack Router. |
+| Offline read cache | SW precache + Query persistence | SW precache + Query persistence | `tauri-plugin-sql` (SQLite) | `tauri-plugin-sql` (SQLite) | **Read mirror only** — the server own store stays canonical. |
+| Secure token storage | `localStorage` (sandboxed) | `localStorage` (sandboxed) | OS keychain (`tauri-plugin-keyring`) | iOS Keychain / Android Keystore | Native shells **never** use `localStorage` for the JWT. |
+
+> **Decision (2026-06): native capabilities are progressive enhancement, not gates.** Every shell loads the same SPA and the full feature inventory; only the six capabilities above degrade gracefully per shell (e.g. badge → tab title in a plain browser, push → native APNs/FCM on mobile). No feature is desktop- or mobile-*only* — the heavy lifting (webhook receiver, own store, `/v1/send`) is server-side, and the shells are thin clients ([`platforms.md`](platforms.md)). Web/PWA is the baseline; desktop and mobile add the native niceties.
 
 ### 3.10 Security & privacy
 
@@ -197,6 +216,8 @@ Being opinionated about the "no" list is how V1 stays small.
 | **AI compose / smart-reply in V1** | MailKite has an agent surface, but the webmail stays lean; revisit as **Later**. |
 | **Masked-email / alias generation** | MailKite owns address creation; minting addresses is a platform concern, not a webmail one. |
 | **Multi-account unified inbox in V1** | Feasible but multiplies config (N keys/secrets). V1 is one account; multi is documented as advanced/**Later**. |
+| **A webhook receiver / store inside the desktop or mobile app** | A device has no public HTTPS URL for `email.received` and must never hold the `mk_live_*` key. Native apps are **thin clients** to the server-side backend ([`platforms.md`](platforms.md)). |
+| **Electron (desktop) or a second mobile toolchain** | Electron is desktop-only and heavy; we use **Tauri 2** for one toolchain across desktop **and** mobile. Capacitor was considered and rejected for splitting the toolchain. |
 
 ---
 
@@ -235,6 +256,7 @@ Everything in [§3](#3-feature-inventory) tagged **V2** or **Later** is out of V
 ## See also
 
 - [`00-overview.md`](00-overview.md) — what MailKite Mail is and the webhook/`send` boundary.
+- [`platforms.md`](platforms.md) — the four shells (web/PWA/desktop/mobile), thin-client pattern, and per-platform notification/push/badge seams.
 - [`install.md`](install.md) — the dual-target install + own-store decision.
 - [`stack.md`](stack.md) — Hono + React/Vite stack and where ingest/scheduler live.
 - [`../../api/src/index.ts`](../../api/src/index.ts) — the verified API surface: `/api/ingest`, `GET /api/messages`, `POST /v1/send`, `GET /att/:mid/:idx`.
