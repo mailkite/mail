@@ -5,6 +5,7 @@ import { AppShell } from './AppShell'
 import { InboxList } from './InboxList'
 import { MessageView } from './MessageView'
 import { Compose, type ComposeDraft } from './Compose'
+import { Settings } from './Settings'
 
 export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () => void }) {
   const [messages, setMessages] = useState<MessageRow[]>([])
@@ -15,6 +16,8 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<ComposeDraft | null>(null)
   const [config, setConfig] = useState<AppConfig | null>(null)
+  const [view, setView] = useState<'mail' | 'settings'>('mail')
+  const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
     api.config().then(setConfig).catch(() => setConfig({ sending: false, push: false, needsSetup: false }))
@@ -60,25 +63,31 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   return (
     <AppShell
       folder={folder}
-      onFolder={(f) => { setSelected(null); setFolder(f) }}
+      onFolder={(f) => { setSelected(null); setFolder(f); setView('mail') }}
       query={query}
       onSearch={setQuery}
-      canCompose={canSend}
+      canCompose={canSend && view === 'mail'}
       onCompose={() => setDraft({ to: '', subject: '' })}
       user={user}
       onLogout={onLogout}
+      onSettings={isAdmin ? () => setView('settings') : undefined}
+      settingsActive={view === 'settings'}
     >
-      <div className="grid grid-cols-[340px_1fr] h-full min-h-0">
-        <InboxList
-          messages={messages}
-          selectedId={selected?.id ?? null}
-          loading={loading}
-          error={error}
-          onSelect={open}
-          onToggleStar={toggleStar}
-        />
-        <MessageView message={selected} canSend={canSend} onReply={reply} onToggleStar={toggleStar} />
-      </div>
+      {view === 'settings' ? (
+        <Settings />
+      ) : (
+        <div className="grid grid-cols-[340px_1fr] h-full min-h-0">
+          <InboxList
+            messages={messages}
+            selectedId={selected?.id ?? null}
+            loading={loading}
+            error={error}
+            onSelect={open}
+            onToggleStar={toggleStar}
+          />
+          <MessageView message={selected} canSend={canSend} onReply={reply} onToggleStar={toggleStar} />
+        </div>
+      )}
       {draft && <Compose draft={draft} onClose={() => setDraft(null)} />}
     </AppShell>
   )

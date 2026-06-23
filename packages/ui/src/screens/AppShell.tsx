@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Inbox, Moon, Sun, Archive, Star, PenSquare, Search, LogOut } from 'lucide-react'
+import { Inbox, Moon, Sun, Archive, Star, PenSquare, Search, LogOut, Settings as SettingsIcon } from 'lucide-react'
 import type { Folder } from '@mailkite/core'
 import type { SessionUser } from '../lib/api'
 import { useTheme } from '../theme/ThemeProvider'
@@ -21,6 +21,8 @@ export function AppShell({
   onCompose,
   user,
   onLogout,
+  onSettings,
+  settingsActive,
 }: {
   children: ReactNode
   folder: Folder
@@ -31,6 +33,8 @@ export function AppShell({
   onCompose?: () => void
   user?: SessionUser
   onLogout?: () => void
+  onSettings?: () => void
+  settingsActive?: boolean
 }) {
   const { resolved, setMode } = useTheme()
   return (
@@ -76,7 +80,7 @@ export function AppShell({
               onClick={() => onFolder(id)}
               className={
                 'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ' +
-                (folder === id
+                (folder === id && !settingsActive
                   ? 'text-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-accent)_12%,transparent)]'
                   : 'text-[var(--color-muted)] hover:text-[var(--color-text)]')
               }
@@ -85,6 +89,20 @@ export function AppShell({
               {label}
             </button>
           ))}
+          {onSettings && (
+            <button
+              onClick={onSettings}
+              className={
+                'mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ' +
+                (settingsActive
+                  ? 'text-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-accent)_12%,transparent)]'
+                  : 'text-[var(--color-muted)] hover:text-[var(--color-text)]')
+              }
+            >
+              <SettingsIcon size={16} />
+              Settings
+            </button>
+          )}
         </nav>
         <main className="flex-1 min-w-0">{children}</main>
       </div>
