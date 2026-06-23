@@ -22,6 +22,7 @@ Start with [`00-overview.md`](00-overview.md), then read in the order below.
 | [platforms.md](platforms.md) | One React SPA, many thin shells — the four targets (web/PWA/desktop/mobile), why Tauri 2 (vs Electron and Capacitor), how each native capability is wired through the `PlatformAdapter`, the installable PWA + Web Push baseline, and the app-store + signing realities. |
 | [repo-structure.md](repo-structure.md) | The workspaces monorepo map — the full directory tree, package boundaries (apps → `ui` → `core`), the client/server `exports` split, the pnpm + Turborepo tooling (`pnpm-workspace.yaml`/`.npmrc`/`turbo.json`), per-app config seams, and the 4-artifact build/release/CI matrix. |
 | [install.md](install.md) | The OSS self-host guide — Node/Docker/Workers quickstarts, the two required MailKite secrets (API key + `whsec_*`), env-var config, webhook wiring (prod proxy + dev tunnels), persistence/backup, the Tauri desktop/mobile + PWA shells, and upgrading. |
+| [implementation.md](implementation.md) | **The build plan** — 10 phases from empty repo to web + desktop + mobile, web-first (shells wrap the SPA), each a runnable vertical slice; phase table, per-phase goals/exit-criteria, the sequencing/parallelism decision, and the suggested first move. |
 
 ## Related platform docs
 

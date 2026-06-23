@@ -1,0 +1,10 @@
+{
+  "name": "@mailkite/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./theme/global.css": "./src/theme/global.css",
+    "./theme/shadcn.css": "./src/theme/shadcn.css"
+  }
+}

@@ -1,0 +1,29 @@
+/* shadcn/ui primitive tokens, mapped onto the MailKite brand tokens defined in
+   global.css. Because those brand tokens flip under html[data-theme="light"],
+   shadcn components inherit light/dark for free — no second definition needed.
+
+   NOTE: the Tailwind v4 `@theme inline` block that exposes these as utilities
+   (bg-background, text-foreground, …) is added by `npx shadcn init` in Phase 2,
+   kept separate from the brand `--color-*` utilities so the two never clash. */
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
+  --card: var(--color-panel);
+  --card-foreground: var(--color-text);
+  --popover: var(--color-panel);
+  --popover-foreground: var(--color-text);
+  --primary: var(--color-accent);
+  --primary-foreground: #0b0d12;
+  --secondary: var(--color-panel);
+  --secondary-foreground: var(--color-text);
+  --muted: var(--color-panel);
+  --muted-foreground: var(--color-muted);
+  --accent: var(--color-panel);
+  --accent-foreground: var(--color-text);
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: var(--color-border);
+  --input: var(--color-border);
+  --ring: var(--color-accent);
+  --radius: 0.625rem;
+}
