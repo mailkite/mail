@@ -12,6 +12,11 @@
   "name": "mailkite-mail",
   "main": "src/worker.ts",
   "compatibility_date": "2025-06-01",
+  "routes": [
+    { "pattern": "mail.mailkite.dev", "custom_domain": true }
+    // { "pattern": "mailn.app", "custom_domain": true }  // pending: delete the
+    // leftover apex A record on mailn.app first (CF won't attach over it).
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
