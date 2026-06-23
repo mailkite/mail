@@ -21,7 +21,7 @@
     {
       "binding": "DB",
       "database_name": "mailkite-mail",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "23e4cc8e-c62c-4000-bfa2-6123fea8a789",
       "migrations_dir": "migrations"
     }
   ],
