@@ -1,0 +1,19 @@
+{
+  "name": "@mailkite/mail",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Open-source, webhook-driven webmail client for MailKite.",
+  "license": "AGPL-3.0",
+  "homepage": "https://mailn.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mailkite/mail.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mailkite/mail/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  }
+}

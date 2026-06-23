@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# builds
+dist/
+.output/
+.vite/
+
+# cloudflare / wrangler
+.wrangler/
+.dev.vars
+
+# local data (own store)
+*.sqlite
+*.sqlite-journal
+*.db
+data/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# logs / os
+*.log
+.DS_Store
