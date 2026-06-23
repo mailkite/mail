@@ -29,13 +29,14 @@ This is the sequencing doc. *What* we're building and *why* live in the companio
 | 2 | Read UI | web | Browse/read real mail in the browser | 1 |
 | 3 | Compose & reply | web | Reply that threads correctly | 2 |
 | 4 | Organize & search | web | The full V1 inbox (labels, search, shortcuts) | 3 |
+| 4.5 | Admin & Setup dashboard | web+backend | Roles (admin/user), admin-only Settings/Setup, config surfacing | 3 |
 | 5 | Workers target + deploy | backend | Hosted on `mailn.app` (Workers + D1 + R2) | 1–4 |
 | 6 | PWA | web | Installable app, push notifications | 2 (4 ideal) |
 | 7 | Desktop (Tauri 2) | desktop | Signed macOS/Windows/Linux installers | 4 |
 | 8 | Mobile (Tauri 2) | mobile | iOS + Android test-track builds | 4, 7 |
 | 9 | Hardening & OSS launch | all | Self-host story, CI releases, public launch | 5–8 |
 
-**Critical path:** 0 → 1 → 2 → 3 → 4, then 5/6/7 can run in parallel, 8 after 7.
+**Critical path:** 0 → 1 → 2 → 3 → 4 → 4.5, then 5/6/7 can run in parallel, 8 after 7. (User **roles** and the **admin-only** Settings/Setup dashboard land in 4.5 — see [`admin-dashboard.md`](admin-dashboard.md).)
 
 ## 3. Phase detail
 
@@ -73,6 +74,15 @@ This is the sequencing doc. *What* we're building and *why* live in the companio
 **Goal:** the full `features.md` **V1** inbox.
 - Read/unread, archive, trash, star/pin, **labels** (local constructs), full-text **search** over the own store, keyboard shortcuts, derived contacts.
 - **Exit:** every V1-tier feature works; V2/Later explicitly deferred.
+
+### Phase 4.5 — Admin & Setup dashboard
+**Goal:** any self-hoster can configure the app, and only an admin can.
+- **Roles:** `users.role` ∈ {`admin`, `user`}. The `admin` sees Settings/Setup; a `user` only gets mail. Single-operator installs have one admin.
+- **Admin gate:** `requireAdmin` middleware on `/api/admin/*` and the dashboard route; non-admins get 403. Bootstrapped by `ADMIN_PASSWORD` env, or a **first-run setup wizard** that creates the admin (hashed in the store).
+- **Config surfacing:** admin Settings shows each item's status — ✅ from env / ✅ saved / ⚠️ missing (secrets masked) — with inputs to save the non-platform ones.
+- **Env-first resolution:** `env var → saved DB setting → unset`; unset → the feature **disables** via the capability gate. Same on Workers and VPS.
+- See [`admin-dashboard.md`](admin-dashboard.md).
+- **Exit:** a fresh deploy walks an admin through setup; missing keys disable their features and are visible in Settings.
 
 ### Phase 5 — Workers target + deploy
 **Goal:** the same app live on `mailn.app`, server-side on Cloudflare.

@@ -1,7 +1,6 @@
 /**
- * The own-store schema. Written to be valid on both SQLite (Node) and D1
- * (Workers). Phase 1 covers the core four tables; labels/contacts/identities/
- * drafts (see docs/data-model.md) land in later phases.
+ * The own-store schema. Valid on both SQLite (Node) and D1 (Workers).
+ * (labels/contacts/identities/drafts beyond this grow per docs/data-model.md.)
  */
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS threads (
@@ -25,10 +24,13 @@ CREATE TABLE IF NOT EXISTS messages (
   dmarc       TEXT,
   spam        TEXT,
   unread      INTEGER NOT NULL DEFAULT 1,
+  starred     INTEGER NOT NULL DEFAULT 0,
+  archived    INTEGER NOT NULL DEFAULT 0,
   received_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_messages_received ON messages (received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_thread   ON messages (thread_id);
+CREATE INDEX IF NOT EXISTS idx_messages_folder   ON messages (archived, starred, received_at DESC);
 
 CREATE TABLE IF NOT EXISTS attachments (
   id           TEXT PRIMARY KEY,
@@ -40,6 +42,17 @@ CREATE TABLE IF NOT EXISTS attachments (
   blob_key     TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments (message_id);
+
+CREATE TABLE IF NOT EXISTS labels (
+  id    TEXT PRIMARY KEY,
+  name  TEXT NOT NULL,
+  color TEXT
+);
+CREATE TABLE IF NOT EXISTS message_labels (
+  message_id TEXT NOT NULL,
+  label_id   TEXT NOT NULL,
+  PRIMARY KEY (message_id, label_id)
+);
 
 -- Dedupe key so re-delivered webhooks are no-ops (idempotent ingest).
 CREATE TABLE IF NOT EXISTS ingest_log (

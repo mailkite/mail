@@ -1,4 +1,4 @@
-import type { MessageRow } from '@mailkite/core'
+import type { MessageRow, MessageFlags, Folder } from '@mailkite/core'
 
 const base: string =
   (import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE ?? ''
@@ -17,9 +17,36 @@ export interface SendBody {
   inReplyTo?: string
 }
 
+export interface AppConfig {
+  sending: boolean
+  push: boolean
+  needsSetup: boolean
+}
+
 export const api = {
-  listMessages: () => getJSON<{ messages: MessageRow[] }>('/api/messages').then((r) => r.messages),
+  config: () => getJSON<AppConfig>('/api/config'),
+
+  listMessages: (opts: { folder?: Folder; q?: string } = {}) => {
+    const p = new URLSearchParams()
+    if (opts.folder) p.set('folder', opts.folder)
+    if (opts.q) p.set('q', opts.q)
+    const qs = p.toString()
+    return getJSON<{ messages: MessageRow[] }>(`/api/messages${qs ? `?${qs}` : ''}`).then((r) => r.messages)
+  },
+
   getMessage: (id: string) => getJSON<{ message: MessageRow }>(`/api/messages/${id}`).then((r) => r.message),
+
+  updateFlags: async (id: string, flags: MessageFlags): Promise<MessageRow> => {
+    const res = await fetch(`${base}/api/messages/${id}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(flags),
+    })
+    if (!res.ok) throw new Error(`patch failed: ${res.status}`)
+    return (await res.json() as { message: MessageRow }).message
+  },
+
   send: async (body: SendBody): Promise<{ id: string; status: string }> => {
     const res = await fetch(`${base}/api/send`, {
       method: 'POST',

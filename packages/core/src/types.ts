@@ -42,5 +42,21 @@ export interface MessageRow {
   dmarc: string | null
   spam: string | null
   unread: number
+  starred: number
+  archived: number
   received_at: number
+}
+
+export type Folder = 'inbox' | 'starred' | 'archive'
+
+export interface MessageFlags {
+  unread?: boolean
+  starred?: boolean
+  archived?: boolean
+}
+
+export interface ListOptions {
+  folder?: Folder
+  q?: string
+  limit?: number
 }

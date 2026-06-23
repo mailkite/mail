@@ -4,7 +4,7 @@ import type { WebhookPayload, MessageRow } from '../types'
 export function mapWebhookToMessage(
   p: WebhookPayload,
   receivedAt: number,
-): Omit<MessageRow, 'direction' | 'unread'> {
+): Omit<MessageRow, 'direction' | 'unread' | 'starred' | 'archived'> {
   return {
     id: p.id,
     thread_id: p.threadId ?? p.id,

@@ -59,10 +59,29 @@ export function createApp(deps: AppDeps) {
     return c.json({ id: payload.id, stored }, stored ? 201 : 200)
   })
 
-  app.get('/api/messages', async (c) => c.json({ messages: await deps.repo.listMessages() }))
+  app.get('/api/config', (c) =>
+    c.json({ sending: Boolean(deps.mailkite.apiKey), push: false, needsSetup: false }),
+  )
+
+  app.get('/api/messages', async (c) => {
+    const folder = c.req.query('folder') as 'inbox' | 'starred' | 'archive' | undefined
+    const q = c.req.query('q') || undefined
+    return c.json({ messages: await deps.repo.listMessages({ folder, q }) })
+  })
 
   app.get('/api/messages/:id', async (c) => {
     const m = await deps.repo.getMessage(c.req.param('id'))
+    return m ? c.json({ message: m }) : c.json({ error: 'not found' }, 404)
+  })
+
+  app.patch('/api/messages/:id', async (c) => {
+    const id = c.req.param('id')
+    const body = (await c.req.json().catch(() => null)) as
+      | { unread?: boolean; starred?: boolean; archived?: boolean }
+      | null
+    if (!body) return c.json({ error: 'invalid body' }, 400)
+    await deps.repo.updateFlags(id, body)
+    const m = await deps.repo.getMessage(id)
     return m ? c.json({ message: m }) : c.json({ error: 'not found' }, 404)
   })
 

@@ -1,15 +1,19 @@
 import { useMemo } from 'react'
-import { Reply } from 'lucide-react'
+import { Reply, Star } from 'lucide-react'
 import type { MessageRow } from '@mailkite/core'
 import { sanitizeEmailHtml } from '../lib/sanitize'
 import { Button } from '../components/Button'
 
 export function MessageView({
   message,
+  canSend,
   onReply,
+  onToggleStar,
 }: {
   message: MessageRow | null
+  canSend?: boolean
   onReply?: (m: MessageRow) => void
+  onToggleStar?: (m: MessageRow) => void
 }) {
   const html = useMemo(
     () => (message?.html_body ? sanitizeEmailHtml(message.html_body) : null),
@@ -29,9 +33,16 @@ export function MessageView({
       <header className="border-b border-[var(--color-border)] px-6 py-4">
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-lg font-semibold">{message.subject ?? '(no subject)'}</h1>
-          <Button onClick={() => onReply?.(message)}>
-            <Reply size={16} /> Reply
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="ghost" aria-label="Star" onClick={() => onToggleStar?.(message)}>
+              <Star size={16} className={message.starred ? 'fill-[var(--color-accent)] text-[var(--color-accent)]' : ''} />
+            </Button>
+            {canSend && (
+              <Button onClick={() => onReply?.(message)}>
+                <Reply size={16} /> Reply
+              </Button>
+            )}
+          </div>
         </div>
         <div className="mt-1 text-sm text-[var(--color-muted)]">
           <span className="text-[var(--color-text)]">{message.from_addr}</span> → {message.to_addr}

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import type { MessageRow } from '@mailkite/core'
-import { api } from '../lib/api'
+import { useCallback, useEffect, useState } from 'react'
+import type { MessageRow, Folder } from '@mailkite/core'
+import { api, type AppConfig } from '../lib/api'
 import { AppShell } from './AppShell'
 import { InboxList } from './InboxList'
 import { MessageView } from './MessageView'
@@ -9,40 +9,73 @@ import { Compose, type ComposeDraft } from './Compose'
 export function MailApp() {
   const [messages, setMessages] = useState<MessageRow[]>([])
   const [selected, setSelected] = useState<MessageRow | null>(null)
+  const [folder, setFolder] = useState<Folder>('inbox')
+  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<ComposeDraft | null>(null)
+  const [config, setConfig] = useState<AppConfig | null>(null)
 
   useEffect(() => {
-    let live = true
-    api
-      .listMessages()
-      .then((m) => { if (live) setMessages(m) })
-      .catch((e: unknown) => { if (live) setError(e instanceof Error ? e.message : String(e)) })
-      .finally(() => { if (live) setLoading(false) })
-    return () => { live = false }
+    api.config().then(setConfig).catch(() => setConfig({ sending: false, push: false, needsSetup: false }))
   }, [])
+
+  const load = useCallback(() => {
+    setLoading(true)
+    setError(null)
+    api
+      .listMessages({ folder, q: query || undefined })
+      .then(setMessages)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false))
+  }, [folder, query])
+
+  useEffect(() => {
+    const t = setTimeout(load, query ? 200 : 0) // debounce search
+    return () => clearTimeout(t)
+  }, [load, query])
+
+  async function open(m: MessageRow) {
+    setSelected(m)
+    if (m.unread) {
+      setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, unread: 0 } : x)))
+      try { await api.updateFlags(m.id, { unread: false }) } catch { /* best-effort */ }
+    }
+  }
+
+  async function toggleStar(m: MessageRow) {
+    const starred = m.starred ? 0 : 1
+    setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, starred } : x)))
+    if (selected?.id === m.id) setSelected({ ...m, starred })
+    try { await api.updateFlags(m.id, { starred: !m.starred }) } catch { load() }
+  }
 
   function reply(m: MessageRow) {
     const subject = m.subject ?? ''
-    setDraft({
-      to: m.from_addr,
-      subject: /^re:/i.test(subject) ? subject : `Re: ${subject}`,
-      inReplyTo: m.id,
-    })
+    setDraft({ to: m.from_addr, subject: /^re:/i.test(subject) ? subject : `Re: ${subject}`, inReplyTo: m.id })
   }
 
+  const canSend = config?.sending ?? false
+
   return (
-    <AppShell onCompose={() => setDraft({ to: '', subject: '' })}>
+    <AppShell
+      folder={folder}
+      onFolder={(f) => { setSelected(null); setFolder(f) }}
+      query={query}
+      onSearch={setQuery}
+      canCompose={canSend}
+      onCompose={() => setDraft({ to: '', subject: '' })}
+    >
       <div className="grid grid-cols-[340px_1fr] h-full min-h-0">
         <InboxList
           messages={messages}
           selectedId={selected?.id ?? null}
           loading={loading}
           error={error}
-          onSelect={setSelected}
+          onSelect={open}
+          onToggleStar={toggleStar}
         />
-        <MessageView message={selected} onReply={reply} />
+        <MessageView message={selected} canSend={canSend} onReply={reply} onToggleStar={toggleStar} />
       </div>
       {draft && <Compose draft={draft} onClose={() => setDraft(null)} />}
     </AppShell>
