@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { MessageRow, Folder } from '@mailkite/core'
-import { api, type AppConfig } from '../lib/api'
+import { api, type AppConfig, type SessionUser } from '../lib/api'
 import { AppShell } from './AppShell'
 import { InboxList } from './InboxList'
 import { MessageView } from './MessageView'
 import { Compose, type ComposeDraft } from './Compose'
 
-export function MailApp() {
+export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () => void }) {
   const [messages, setMessages] = useState<MessageRow[]>([])
   const [selected, setSelected] = useState<MessageRow | null>(null)
   const [folder, setFolder] = useState<Folder>('inbox')
@@ -65,6 +65,8 @@ export function MailApp() {
       onSearch={setQuery}
       canCompose={canSend}
       onCompose={() => setDraft({ to: '', subject: '' })}
+      user={user}
+      onLogout={onLogout}
     >
       <div className="grid grid-cols-[340px_1fr] h-full min-h-0">
         <InboxList

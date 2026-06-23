@@ -9,6 +9,33 @@ async function getJSON<T>(path: string): Promise<T> {
   return (await res.json()) as T
 }
 
+async function postJSON<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${base}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const e = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new Error(e.error ?? `${res.status} ${res.statusText}`)
+  }
+  return (await res.json()) as T
+}
+
+export interface SessionUser {
+  email: string
+  role: 'admin' | 'user'
+}
+
+export interface AdminConfigItem {
+  key: string
+  secret: boolean
+  gates: string | null
+  source: 'env' | 'saved' | 'unset'
+  value: string
+}
+
 export interface SendBody {
   to: string
   subject: string
@@ -25,6 +52,25 @@ export interface AppConfig {
 
 export const api = {
   config: () => getJSON<AppConfig>('/api/config'),
+
+  // ---- auth ----------------------------------------------------------------
+  me: async (): Promise<SessionUser | null> => {
+    const res = await fetch(`${base}/api/admin/me`, { credentials: 'include' })
+    if (res.status === 401) return null
+    if (!res.ok) throw new Error(`me failed: ${res.status}`)
+    return (await res.json()) as SessionUser
+  },
+  login: (email: string, password: string) =>
+    postJSON<SessionUser>('/api/admin/login', { email, password }),
+  setup: (email: string, password: string) =>
+    postJSON<SessionUser>('/api/admin/setup', { email, password }),
+  logout: () =>
+    fetch(`${base}/api/admin/logout`, { method: 'POST', credentials: 'include' }).then(() => {}),
+
+  // ---- admin config --------------------------------------------------------
+  adminConfig: () => getJSON<{ items: AdminConfigItem[] }>('/api/admin/config').then((r) => r.items),
+  saveConfig: (key: string, value: string) =>
+    postJSON<{ ok: boolean }>('/api/admin/config', { key, value }),
 
   listMessages: (opts: { folder?: Folder; q?: string } = {}) => {
     const p = new URLSearchParams()

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
-import { Inbox, Moon, Sun, Archive, Star, PenSquare, Search } from 'lucide-react'
+import { Inbox, Moon, Sun, Archive, Star, PenSquare, Search, LogOut } from 'lucide-react'
 import type { Folder } from '@mailkite/core'
+import type { SessionUser } from '../lib/api'
 import { useTheme } from '../theme/ThemeProvider'
 import { Button } from '../components/Button'
 
@@ -18,6 +19,8 @@ export function AppShell({
   onSearch,
   canCompose,
   onCompose,
+  user,
+  onLogout,
 }: {
   children: ReactNode
   folder: Folder
@@ -26,6 +29,8 @@ export function AppShell({
   onSearch: (q: string) => void
   canCompose?: boolean
   onCompose?: () => void
+  user?: SessionUser
+  onLogout?: () => void
 }) {
   const { resolved, setMode } = useTheme()
   return (
@@ -45,6 +50,18 @@ export function AppShell({
         <Button variant="ghost" aria-label="Toggle theme" onClick={() => setMode(resolved === 'dark' ? 'light' : 'dark')}>
           {resolved === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </Button>
+        {user && (
+          <>
+            <span className="hidden sm:block text-sm text-[var(--color-muted)] max-w-[12rem] truncate" title={user.email}>
+              {user.email}
+            </span>
+            {onLogout && (
+              <Button variant="ghost" aria-label="Sign out" title="Sign out" onClick={onLogout}>
+                <LogOut size={16} />
+              </Button>
+            )}
+          </>
+        )}
       </header>
       <div className="flex flex-1 min-h-0">
         <nav className="w-48 shrink-0 border-r border-[var(--color-border)] p-2 space-y-0.5">
