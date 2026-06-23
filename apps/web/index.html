@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MailKite Mail</title>
+    <script>
+      // No-flash: apply the saved theme before first paint.
+      try {
+        var m = localStorage.getItem('mailkite.theme.mode') || 'dark';
+        var r = m === 'system'
+          ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+          : m;
+        document.documentElement.setAttribute('data-theme', r);
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

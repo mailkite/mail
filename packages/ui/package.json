@@ -4,7 +4,27 @@
   "private": true,
   "type": "module",
   "exports": {
+    ".": "./src/index.ts",
     "./theme/global.css": "./src/theme/global.css",
     "./theme/shadcn.css": "./src/theme/shadcn.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mailkite/core": "workspace:*",
+    "clsx": "^2.1.1",
+    "dompurify": "^3.2.3",
+    "lucide-react": "^0.468.0",
+    "tailwind-merge": "^2.5.5"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
   }
 }
