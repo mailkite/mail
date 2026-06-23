@@ -1,6 +1,7 @@
 export { App } from './screens/App'
 export { MailApp } from './screens/MailApp'
 export { Login } from './screens/Login'
+export { SetupWizard } from './screens/SetupWizard'
 export { AppShell } from './screens/AppShell'
 export { Compose } from './screens/Compose'
 export type { ComposeDraft } from './screens/Compose'

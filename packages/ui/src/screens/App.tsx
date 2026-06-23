@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, type AppConfig, type SessionUser } from '../lib/api'
 import { MailApp } from './MailApp'
 import { Login } from './Login'
+import { SetupWizard } from './SetupWizard'
 
 function Splash() {
   return (
@@ -13,8 +14,7 @@ function Splash() {
 
 /**
  * Root gate: resolve the session + capabilities once, then route to the right
- * screen. Setup wizard (needsSetup) lands in a later phase; for now it's
- * login → mail.
+ * screen — first-run setup → login → mail.
  */
 export function App() {
   const [config, setConfig] = useState<AppConfig | null>(null)
@@ -36,6 +36,17 @@ export function App() {
   }, [refresh])
 
   if (!ready || !config) return <Splash />
+
+  if (config.needsSetup && !user) {
+    return (
+      <SetupWizard
+        onCreate={async (email, password) => {
+          await api.setup(email, password)
+          await refresh()
+        }}
+      />
+    )
+  }
 
   if (!user) {
     return (
