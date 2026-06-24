@@ -60,18 +60,35 @@ CREATE TABLE IF NOT EXISTS ingest_log (
   received_at INTEGER NOT NULL
 );
 
--- Roles + admin-gated dashboard.
+-- Team members. password_hash is '' for OAuth (Google) users. Column order
+-- matches migration 0002's ALTER ADD COLUMNs so both build paths agree.
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
   email         TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   role          TEXT NOT NULL DEFAULT 'user',
-  created_at    INTEGER NOT NULL
+  created_at    INTEGER NOT NULL,
+  name          TEXT,
+  provider      TEXT NOT NULL DEFAULT 'password',
+  google_sub    TEXT,
+  status        TEXT NOT NULL DEFAULT 'active',
+  invited_by    TEXT,
+  avatar_url    TEXT
 );
 
 -- Operator-saved config (env-first; this is the DB fallback). Secrets included.
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
+);
+
+-- Provisioned send-as addresses (support@, hello@, per-person). Team-wide, no
+-- per-user ACL — any member may send as any of these. See docs/teams.md.
+CREATE TABLE IF NOT EXISTS sender_accounts (
+  id         TEXT PRIMARY KEY,
+  address    TEXT NOT NULL UNIQUE,
+  label      TEXT,
+  created_by TEXT,
+  created_at INTEGER NOT NULL
 );
 `

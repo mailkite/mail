@@ -19,7 +19,12 @@ async function schemaObjects(apply: (d: SqliteDriver) => Promise<void>): Promise
   const rows = await d.all<{ sql: string }>(
     'SELECT sql FROM sqlite_master WHERE sql IS NOT NULL ORDER BY type, name',
   )
-  return rows.map((r) => r.sql.replace(/\s+/g, ' ').trim()).sort()
+  // Normalize structurally: collapse whitespace and drop spaces around
+  // punctuation so SQLite's ALTER-ADD-COLUMN reformatting (e.g. "NOT NULL ,")
+  // compares equal to the hand-written SCHEMA_SQL.
+  return rows
+    .map((r) => r.sql.replace(/\s+/g, ' ').replace(/\s*([(),])\s*/g, '$1').trim())
+    .sort()
 }
 
 describe('D1 migrations ↔ SCHEMA_SQL', () => {
