@@ -220,13 +220,26 @@ export function createApp(deps: AppDeps) {
     return m ? c.json({ message: m }) : c.json({ error: 'not found' }, 404)
   })
 
+  // Send-as identities: addresses this mailbox has received at, plus the
+  // configured default. The compose UI picks `from` from these.
+  app.get('/api/identities', requireAuth, async (c) => {
+    const received = await deps.repo.listIdentities()
+    const dflt = (await resolve('MAILKITE_FROM', deps.env.from)) || received[0] || ''
+    const identities = [...new Set([dflt, ...received].filter(Boolean))]
+    return c.json({ identities, default: dflt })
+  })
+
   app.post('/api/send', requireAuth, async (c) => {
     const apiKey = await resolve('MAILKITE_API_KEY', deps.env.apiKey)
     if (!apiKey) return c.json({ error: 'sending not configured (set MAILKITE_API_KEY)' }, 503)
     const body = (await c.req.json().catch(() => null)) as Partial<SendInput> | null
     if (!body?.to || !body.subject) return c.json({ error: '`to` and `subject` are required' }, 400)
 
-    const from = await resolve('MAILKITE_FROM', deps.env.from)
+    // Per-message From (send-as) wins; fall back to the configured default.
+    const from = body.from?.trim() || (await resolve('MAILKITE_FROM', deps.env.from))
+    if (!from) {
+      return c.json({ error: 'no From address — pick one in the message or set MAILKITE_FROM in Settings' }, 400)
+    }
     const apiBase = (await resolve('MAILKITE_API_BASE', deps.env.apiBase)) || 'https://api.mailkite.dev'
     try {
       const result = await sendEmail(

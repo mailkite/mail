@@ -91,6 +91,16 @@ export class MailRepo {
     return this.sql.get<MessageRow>('SELECT * FROM messages WHERE id = ?', [id])
   }
 
+  /** Distinct addresses this mailbox has received at — the natural "send-as"
+   *  identities for a catch-all inbox, most-received first. */
+  async listIdentities(): Promise<string[]> {
+    const rows = await this.sql.all<{ to_addr: string }>(
+      `SELECT to_addr, COUNT(*) AS n FROM messages
+       WHERE direction = 'inbound' AND to_addr <> '' GROUP BY to_addr ORDER BY n DESC LIMIT 50`,
+    )
+    return rows.map((r) => r.to_addr)
+  }
+
   /** Toggle read/starred/archived flags. Ignores keys that aren't provided. */
   async updateFlags(id: string, flags: MessageFlags): Promise<void> {
     const sets: string[] = []

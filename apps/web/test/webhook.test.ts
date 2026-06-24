@@ -71,4 +71,32 @@ describe('POST /api/send', () => {
     expect((sent as { from: string }).from).toBe('me@mailn.app')
     expect((sent as { inReplyTo: string }).inReplyTo).toBe('msg_http')
   })
+
+  it('honors a per-message From (send-as identity) over the default', async () => {
+    let sent: { from?: string } = {}
+    const app = await makeApp({ sendEmail: async (input) => { sent = input; return { id: 'out_2', status: 'queued' } } })
+    const cookie = await authCookie(app)
+    const res = await app.fetch(new Request('http://x/api/send', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ from: 'support@mailn.app', to: 'a@b.com', subject: 'Hi', text: 'yo' }),
+    }))
+    expect(res.status).toBe(201)
+    expect(sent.from).toBe('support@mailn.app')
+  })
+})
+
+describe('GET /api/identities', () => {
+  it('lists addresses received at (after an inbound webhook) + the default', async () => {
+    const app = await makeApp()
+    const t = Date.now()
+    await app.fetch(new Request('http://x/webhook', {
+      method: 'POST', headers: { 'x-mailkite-signature': `t=${t},v1=${await sign('whsec_smoke', t, raw)}` }, body: raw,
+    }))
+    const cookie = await authCookie(app)
+    const res = await app.fetch(new Request('http://x/api/identities', { headers: { cookie } }))
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { identities: string[]; default: string }
+    expect(body.default).toBe('me@mailn.app')
+    expect(body.identities).toContain('me@mailn.app')
+  })
 })

@@ -1,26 +1,41 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, type SendBody } from '../lib/api'
 import { Button } from '../components/Button'
 
 export interface ComposeDraft {
   to: string
   subject: string
+  from?: string
   text?: string
   inReplyTo?: string
 }
 
 export function Compose({ draft, onClose }: { draft: ComposeDraft; onClose: () => void }) {
+  const [from, setFrom] = useState(draft.from ?? '')
+  const [identities, setIdentities] = useState<string[]>([])
   const [to, setTo] = useState(draft.to)
   const [subject, setSubject] = useState(draft.subject)
   const [text, setText] = useState(draft.text ?? '')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Load send-as identities; default From to the reply address (draft.from) or
+  // the configured default.
+  useEffect(() => {
+    api
+      .identities()
+      .then(({ identities, default: dflt }) => {
+        setIdentities(identities)
+        setFrom((f) => f || draft.from || dflt)
+      })
+      .catch(() => {})
+  }, [draft.from])
+
   async function send() {
     setSending(true)
     setError(null)
     try {
-      const body: SendBody = { to, subject, text, inReplyTo: draft.inReplyTo }
+      const body: SendBody = { from: from.trim() || undefined, to, subject, text, inReplyTo: draft.inReplyTo }
       await api.send(body)
       onClose()
     } catch (e) {
@@ -40,6 +55,18 @@ export function Compose({ draft, onClose }: { draft: ComposeDraft; onClose: () =
           <button onClick={onClose} className="text-[var(--color-muted)] hover:text-[var(--color-text)]">✕</button>
         </div>
         <div className="px-4 py-2">
+          <input
+            className={field}
+            placeholder="From"
+            value={from}
+            list="mk-identities"
+            onChange={(e) => setFrom(e.target.value)}
+          />
+          <datalist id="mk-identities">
+            {identities.map((i) => (
+              <option key={i} value={i} />
+            ))}
+          </datalist>
           <input className={field} placeholder="To" value={to} onChange={(e) => setTo(e.target.value)} />
           <input className={field} placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
           <textarea
@@ -51,7 +78,7 @@ export function Compose({ draft, onClose }: { draft: ComposeDraft; onClose: () =
         </div>
         {error && <p className="px-4 pb-2 text-sm text-red-400">{error}</p>}
         <div className="flex items-center gap-2 border-t border-[var(--color-border)] px-4 py-2">
-          <Button onClick={send} disabled={sending || !to || !subject}>
+          <Button onClick={send} disabled={sending || !from || !to || !subject}>
             {sending ? 'Sending…' : 'Send'}
           </Button>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>

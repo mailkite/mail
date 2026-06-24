@@ -39,6 +39,7 @@ export interface AdminConfigItem {
 export interface SendBody {
   to: string
   subject: string
+  from?: string
   text?: string
   html?: string
   inReplyTo?: string
@@ -81,6 +82,8 @@ export const api = {
   },
 
   getMessage: (id: string) => getJSON<{ message: MessageRow }>(`/api/messages/${id}`).then((r) => r.message),
+
+  identities: () => getJSON<{ identities: string[]; default: string }>('/api/identities'),
 
   updateFlags: async (id: string, flags: MessageFlags): Promise<MessageRow> => {
     const res = await fetch(`${base}/api/messages/${id}`, {

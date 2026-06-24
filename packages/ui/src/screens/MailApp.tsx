@@ -55,7 +55,13 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
 
   function reply(m: MessageRow) {
     const subject = m.subject ?? ''
-    setDraft({ to: m.from_addr, subject: /^re:/i.test(subject) ? subject : `Re: ${subject}`, inReplyTo: m.id })
+    // Reply from the address that received it (the send-as identity).
+    setDraft({
+      from: m.to_addr,
+      to: m.from_addr,
+      subject: /^re:/i.test(subject) ? subject : `Re: ${subject}`,
+      inReplyTo: m.id,
+    })
   }
 
   const canSend = config?.sending ?? false
