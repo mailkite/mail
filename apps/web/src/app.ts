@@ -9,6 +9,7 @@ import {
   verifyPassword,
   signSession,
   verifySession,
+  hashToken,
 } from '@mailkite/core/server'
 import type { SendInput, SendResult, SessionPayload } from '@mailkite/core/server'
 
@@ -97,22 +98,87 @@ export function createApp(deps: AppDeps) {
   })
 
   // ---- Auth -----------------------------------------------------------------
-  app.post('/api/admin/setup', async (c) => {
-    if (deps.env.adminPassword || (await deps.repo.countUsers()) > 0) {
-      return c.json({ error: 'setup already complete' }, 409)
+  const CODE_TTL = 15 * 60 * 1000
+  const norm = (e: string) => e.trim().toLowerCase()
+
+  /** Generate a 6-digit code, store it hashed, and email it to the address. */
+  async function sendVerificationCode(email: string): Promise<{ ok: boolean; error?: string }> {
+    const apiKey = await resolve('MAILKITE_API_KEY', deps.env.apiKey)
+    const from = await resolve('MAILKITE_FROM', deps.env.from)
+    if (!apiKey || !from) {
+      return { ok: false, error: 'email sending not configured (set MAILKITE_API_KEY + MAILKITE_FROM)' }
     }
+    const code = String((crypto.getRandomValues(new Uint32Array(1))[0] % 900000) + 100000)
+    const now = Date.now()
+    await deps.repo.putEmailCode(email, await hashToken(code), now + CODE_TTL, now)
+    const apiBase = (await resolve('MAILKITE_API_BASE', deps.env.apiBase)) || 'https://api.mailkite.dev'
+    try {
+      await sendEmail(
+        {
+          from,
+          to: email,
+          subject: 'Your MailKite Mail verification code',
+          text: `Your verification code is ${code}\n\nIt expires in 15 minutes.`,
+        },
+        apiBase,
+        apiKey,
+      )
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'failed to send code' }
+    }
+  }
+
+  // Sign up with email + password → emails a one-time code. The first user to
+  // verify becomes the admin (see docs/teams.md).
+  app.post('/api/admin/signup', async (c) => {
     const body = (await c.req.json().catch(() => null)) as { email?: string; password?: string } | null
     if (!body?.email || !body.password) return c.json({ error: 'email and password required' }, 400)
-    const user = {
-      id: `usr_${crypto.randomUUID()}`,
-      email: body.email,
-      password_hash: await hashPassword(body.password),
-      role: 'admin' as const,
-      created_at: Date.now(),
+    if (body.password.length < 8) return c.json({ error: 'password must be at least 8 characters' }, 400)
+    const email = norm(body.email)
+    const existing = await deps.repo.getUserByEmail(email)
+    if (existing && existing.status === 'active') return c.json({ error: 'account exists — sign in' }, 409)
+
+    const passwordHash = await hashPassword(body.password)
+    if (!existing) {
+      const role = (await deps.repo.countUsers()) === 0 ? 'admin' : 'user'
+      await deps.repo.createUser({
+        id: `usr_${crypto.randomUUID()}`,
+        email,
+        password_hash: passwordHash,
+        role,
+        created_at: Date.now(),
+        provider: 'password',
+        status: 'pending',
+      })
+    } else {
+      await deps.repo.setUserPassword(email, passwordHash) // re-signup of a pending account
     }
-    await deps.repo.createUser(user)
-    await startSession(c, { uid: user.id, role: 'admin', email: user.email })
-    return c.json({ email: user.email, role: 'admin' }, 201)
+    const sent = await sendVerificationCode(email)
+    if (!sent.ok) return c.json({ error: sent.error }, 503)
+    return c.json({ status: 'pending', email }, 201)
+  })
+
+  app.post('/api/admin/verify', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { email?: string; code?: string } | null
+    if (!body?.email || !body.code) return c.json({ error: 'email and code required' }, 400)
+    const email = norm(body.email)
+    const ok = await deps.repo.consumeEmailCode(email, await hashToken(body.code.trim()), Date.now())
+    if (!ok) return c.json({ error: 'invalid or expired code' }, 400)
+    await deps.repo.setUserStatus(email, 'active')
+    const u = await deps.repo.getUserByEmail(email)
+    if (!u) return c.json({ error: 'account not found' }, 404)
+    await startSession(c, { uid: u.id, role: u.role, email: u.email })
+    return c.json({ email: u.email, role: u.role })
+  })
+
+  app.post('/api/admin/resend', async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { email?: string } | null
+    if (!body?.email) return c.json({ error: 'email required' }, 400)
+    const u = await deps.repo.getUserByEmail(norm(body.email))
+    if (!u || u.status !== 'pending') return c.json({ ok: true }) // don't reveal account state
+    const sent = await sendVerificationCode(u.email)
+    return sent.ok ? c.json({ ok: true }) : c.json({ error: sent.error }, 503)
   })
 
   app.post('/api/admin/login', async (c) => {
@@ -128,9 +194,12 @@ export function createApp(deps: AppDeps) {
       return c.json({ email: body.email, role: 'admin' })
     }
 
-    const u = await deps.repo.getUserByEmail(body.email)
+    const u = await deps.repo.getUserByEmail(norm(body.email))
     if (!u || !(await verifyPassword(body.password, u.password_hash))) {
       return c.json({ error: 'invalid credentials' }, 401)
+    }
+    if (u.status === 'pending') {
+      return c.json({ error: 'verify your email to finish signing up', code: 'unverified', email: u.email }, 403)
     }
     await startSession(c, { uid: u.id, role: u.role, email: u.email })
     return c.json({ email: u.email, role: u.role })

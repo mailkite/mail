@@ -1,4 +1,4 @@
-import type { WebhookPayload, MessageRow, MessageFlags, ListOptions, UserRow } from '../types'
+import type { WebhookPayload, MessageRow, MessageFlags, ListOptions, UserRow, UserStatus } from '../types'
 import { mapWebhookToMessage } from '../webhook/map'
 import type { SqlDriver, BlobStore } from './ports'
 import { SCHEMA_SQL } from './schema'
@@ -143,8 +143,42 @@ export class MailRepo {
 
   async createUser(u: UserRow): Promise<void> {
     await this.sql.run(
-      'INSERT INTO users (id, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)',
-      [u.id, u.email, u.password_hash, u.role, u.created_at],
+      `INSERT INTO users (id, email, password_hash, role, created_at, name, provider, google_sub, status, invited_by, avatar_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        u.id, u.email, u.password_hash, u.role, u.created_at,
+        u.name ?? null, u.provider ?? 'password', u.google_sub ?? null,
+        u.status ?? 'active', u.invited_by ?? null, u.avatar_url ?? null,
+      ],
     )
+  }
+
+  async setUserStatus(email: string, status: UserStatus): Promise<void> {
+    await this.sql.run('UPDATE users SET status = ? WHERE email = ?', [status, email])
+  }
+
+  async setUserPassword(email: string, passwordHash: string): Promise<void> {
+    await this.sql.run('UPDATE users SET password_hash = ? WHERE email = ?', [passwordHash, email])
+  }
+
+  // ---- Email verification codes (OTP) --------------------------------------
+  /** Store a fresh code for `email`, replacing any prior code. */
+  async putEmailCode(email: string, codeHash: string, expiresAt: number, now: number): Promise<void> {
+    await this.sql.run('DELETE FROM email_codes WHERE email = ?', [email])
+    await this.sql.run(
+      'INSERT INTO email_codes (email, code_hash, expires_at, created_at) VALUES (?, ?, ?, ?)',
+      [email, codeHash, expiresAt, now],
+    )
+  }
+
+  /** True if a matching, unexpired code exists; only then consumes it (a wrong
+   *  guess must not invalidate the valid code). */
+  async consumeEmailCode(email: string, codeHash: string, now: number): Promise<boolean> {
+    const row = await this.sql.get<{ email: string }>(
+      'SELECT email FROM email_codes WHERE email = ? AND code_hash = ? AND expires_at > ?',
+      [email, codeHash, now],
+    )
+    if (row) await this.sql.run('DELETE FROM email_codes WHERE email = ?', [email])
+    return !!row
   }
 }

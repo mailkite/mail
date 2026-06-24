@@ -91,4 +91,13 @@ CREATE TABLE IF NOT EXISTS sender_accounts (
   created_by TEXT,
   created_at INTEGER NOT NULL
 );
+
+-- One-time email verification codes (OTP) for signup. Short-lived, hashed.
+CREATE TABLE IF NOT EXISTS email_codes (
+  email      TEXT NOT NULL,
+  code_hash  TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_email_codes_email ON email_codes (email);
 `

@@ -51,12 +51,21 @@ export type Folder = 'inbox' | 'starred' | 'archive'
 
 export type Role = 'admin' | 'user'
 
+export type AuthProvider = 'password' | 'google'
+export type UserStatus = 'active' | 'pending' | 'invited'
+
 export interface UserRow {
   id: string
   email: string
   password_hash: string
   role: Role
   created_at: number
+  name?: string | null
+  provider?: AuthProvider
+  google_sub?: string | null
+  status?: UserStatus
+  invited_by?: string | null
+  avatar_url?: string | null
 }
 
 export interface MessageFlags {

@@ -19,7 +19,8 @@ describe the building blocks; this doc is the product decision they now serve.
 |---|---|
 | **Tenant** | One team = one verified domain. The team shares the domain's whole inbox (the catch-all `*@domain` webhook). No per-user mailbox partitioning. |
 | **Members** | The **admin invites** teammates by email; invitees **sign in with Google** and are activated on first login. Non-invited Google accounts are rejected. |
-| **Login** | **Google OAuth** (authorization-code flow), ported from the MailKite dashboard — same web client id, server-side code exchange. Password login is retained only for **admin bootstrap**. |
+| **Login** | Two methods, both **email-verified**: (1) **email + password** with a one-time **verification code** emailed on signup (proves the user controls the address the admin invited); (2) **Google OAuth** (email verified by Google). |
+| **Bootstrap** | **First user to verify in** (by either method) becomes the **admin** — no preset admin/password. After that, only admin-invited emails may join (T3). |
 | **Sender addresses** | The team **provisions** send-as addresses (`support@`, `hello@`, or per-person `alice@`). Any address on the verified domain is valid — provisioning just records it as a pickable sender. |
 | **Sender permissions** | **No ACL for now.** Any member may send as any provisioned address. Per-user sender restrictions are deferred. |
 | **Roles** | `admin` — invite/remove members, provision senders, Settings. `member` — read all mail, send as any address. |

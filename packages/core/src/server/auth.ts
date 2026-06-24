@@ -40,6 +40,12 @@ async function hmacHex(secret: string, data: string): Promise<string> {
   return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+/** Fast one-way hash for short-lived codes/tokens (OTP) — not for passwords. */
+export async function hashToken(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', enc.encode(token))
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 export interface SessionPayload {
   uid: string
   role: 'admin' | 'user'
