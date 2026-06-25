@@ -27,6 +27,8 @@ const env = {
   adminPassword: process.env.ADMIN_PASSWORD,
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  appName: process.env.APP_NAME,
+  logoUrl: process.env.LOGO_URL,
 }
 if (!env.webhookSecret) console.warn('MAILKITE_WEBHOOK_SECRET unset — inbound disabled until set in Settings')
 if (!env.apiKey) console.warn('MAILKITE_API_KEY unset — sending disabled until set in Settings')

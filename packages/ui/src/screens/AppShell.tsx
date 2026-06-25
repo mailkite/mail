@@ -1,9 +1,16 @@
 import type { ReactNode } from 'react'
-import { Inbox, Moon, Sun, Archive, Star, PenSquare, Search, LogOut, Settings as SettingsIcon } from 'lucide-react'
+import { Inbox, Moon, Sun, Archive, Star, PenSquare, Search, Settings as SettingsIcon } from 'lucide-react'
 import type { Folder } from '@mailkite/core'
 import type { SessionUser } from '../lib/api'
 import { useTheme } from '../theme/ThemeProvider'
 import { Button } from '../components/Button'
+import { Avatar } from '../components/Avatar'
+import { Logo } from '../components/Logo'
+
+/** "bucabay@gmail.com" → "bucabay"; prefers a real name when we have one. */
+function displayName(user: SessionUser): string {
+  return user.name?.trim() || user.email.split('@')[0]
+}
 
 const FOLDERS: { id: Folder; icon: typeof Inbox; label: string }[] = [
   { id: 'inbox', icon: Inbox, label: 'Inbox' },
@@ -20,9 +27,12 @@ export function AppShell({
   canCompose,
   onCompose,
   user,
-  onLogout,
+  onProfile,
+  profileActive,
   onSettings,
   settingsActive,
+  appName,
+  logoUrl,
 }: {
   children: ReactNode
   folder: Folder
@@ -32,15 +42,18 @@ export function AppShell({
   canCompose?: boolean
   onCompose?: () => void
   user?: SessionUser
-  onLogout?: () => void
+  onProfile?: () => void
+  profileActive?: boolean
   onSettings?: () => void
   settingsActive?: boolean
+  appName?: string
+  logoUrl?: string
 }) {
   const { resolved, setMode } = useTheme()
   return (
     <div className="h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
       <header className="flex items-center gap-3 border-b border-[var(--color-border)] px-4 h-14 shrink-0">
-        <span className="text-gradient text-lg font-semibold shrink-0">MailKite Mail</span>
+        <Logo name={appName} logoUrl={logoUrl} className="shrink-0" />
         <div className="relative flex-1 max-w-md">
           <Search size={14} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-muted)]" />
           <input
@@ -54,17 +67,21 @@ export function AppShell({
         <Button variant="ghost" aria-label="Toggle theme" onClick={() => setMode(resolved === 'dark' ? 'light' : 'dark')}>
           {resolved === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </Button>
-        {user && (
-          <>
-            <span className="hidden sm:block text-sm text-[var(--color-muted)] max-w-[12rem] truncate" title={user.email}>
-              {user.email}
-            </span>
-            {onLogout && (
-              <Button variant="ghost" aria-label="Sign out" title="Sign out" onClick={onLogout}>
-                <LogOut size={16} />
-              </Button>
-            )}
-          </>
+        {user && onProfile && (
+          <button
+            onClick={onProfile}
+            title="Account settings"
+            aria-label="Account settings"
+            className={
+              'flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 text-sm transition ' +
+              (profileActive
+                ? 'text-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-accent)_12%,transparent)]'
+                : 'text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[color-mix(in_oklab,var(--color-border)_40%,transparent)]')
+            }
+          >
+            <Avatar email={user.email} src={user.avatarUrl} size={28} />
+            <span className="hidden sm:block max-w-[10rem] truncate font-medium">{displayName(user)}</span>
+          </button>
         )}
       </header>
       <div className="flex flex-1 min-h-0">
@@ -80,7 +97,7 @@ export function AppShell({
               onClick={() => onFolder(id)}
               className={
                 'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ' +
-                (folder === id && !settingsActive
+                (folder === id && !settingsActive && !profileActive
                   ? 'text-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-accent)_12%,transparent)]'
                   : 'text-[var(--color-muted)] hover:text-[var(--color-text)]')
               }

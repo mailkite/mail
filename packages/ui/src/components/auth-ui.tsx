@@ -1,20 +1,27 @@
 import type { InputHTMLAttributes, ReactNode } from 'react'
+import { Logo } from './Logo'
 
-// Centered card used by the Login and Setup screens — same chrome, different form.
+// Centered card used by the auth screens — same chrome, different form.
 export function AuthScreen({
   title,
   subtitle,
+  brandName,
+  logoUrl,
   children,
 }: {
   title: string
   subtitle?: ReactNode
+  brandName?: string
+  logoUrl?: string
   children: ReactNode
 }) {
   return (
     <div className="h-screen flex items-center justify-center bg-[var(--color-bg)] text-[var(--color-text)] p-4">
       <div className="w-full max-w-sm rounded-xl border border-[var(--color-border)] p-6 shadow-lg">
         <div className="mb-5 text-center">
-          <div className="text-gradient text-lg font-semibold">MailKite Mail</div>
+          <div className="flex justify-center">
+            <Logo name={brandName} logoUrl={logoUrl} />
+          </div>
           <h1 className="mt-3 text-xl font-semibold">{title}</h1>
           {subtitle && <p className="mt-1 text-sm text-[var(--color-muted)]">{subtitle}</p>}
         </div>

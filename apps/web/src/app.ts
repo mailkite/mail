@@ -24,6 +24,8 @@ export interface AppEnvConfig {
   adminPassword?: string
   googleClientId?: string
   googleClientSecret?: string
+  appName?: string
+  logoUrl?: string
 }
 
 export interface AppDeps {
@@ -46,6 +48,8 @@ const CONFIG_ITEMS = [
   { key: 'MAILKITE_FROM', secret: false, gates: null, env: (e: AppEnvConfig) => e.from },
   { key: 'GOOGLE_CLIENT_ID', secret: false, gates: 'google sign-in', env: (e: AppEnvConfig) => e.googleClientId },
   { key: 'GOOGLE_CLIENT_SECRET', secret: true, gates: 'google sign-in', env: (e: AppEnvConfig) => e.googleClientSecret },
+  { key: 'APP_NAME', secret: false, gates: 'branding', env: (e: AppEnvConfig) => e.appName },
+  { key: 'LOGO_URL', secret: false, gates: 'branding', env: (e: AppEnvConfig) => e.logoUrl },
 ] as const
 
 const CONFIG_KEYS = new Set<string>(CONFIG_ITEMS.map((i) => i.key))
@@ -103,9 +107,19 @@ export function createApp(deps: AppDeps) {
     const googleClientId = await resolve('GOOGLE_CLIENT_ID', deps.env.googleClientId)
     const googleClientSecret = await resolve('GOOGLE_CLIENT_SECRET', deps.env.googleClientSecret)
     const oauth = Boolean(googleClientId && googleClientSecret)
+    const appName = (await resolve('APP_NAME', deps.env.appName)) || 'MailKite Mail'
+    const logoUrl = await resolve('LOGO_URL', deps.env.logoUrl)
     // googleClientId is public (the SPA builds the consent URL with it); the
     // secret never leaves the server.
-    return c.json({ sending, push: false, needsSetup, oauth, googleClientId: oauth ? googleClientId : '' })
+    return c.json({
+      sending,
+      push: false,
+      needsSetup,
+      oauth,
+      googleClientId: oauth ? googleClientId : '',
+      appName,
+      logoUrl,
+    })
   })
 
   // ---- Auth -----------------------------------------------------------------
@@ -255,9 +269,33 @@ export function createApp(deps: AppDeps) {
     return c.json({ ok: true })
   })
 
-  app.get('/api/admin/me', requireAuth, (c) => {
+  app.get('/api/admin/me', requireAuth, async (c) => {
     const u = c.get('user') as SessionPayload
-    return c.json({ email: u.email, role: u.role })
+    const row = await deps.repo.getUserById(u.uid)
+    return c.json({
+      email: u.email,
+      role: u.role,
+      name: row?.name ?? null,
+      avatarUrl: row?.avatar_url ?? null,
+    })
+  })
+
+  // Self-service: delete your own account and end the session. The last
+  // remaining admin is blocked so the workspace can't be left without one.
+  app.post('/api/admin/account/delete', requireAuth, async (c) => {
+    const u = c.get('user') as SessionPayload
+    if (u.role === 'admin') {
+      const admins = (await deps.repo.listUsers()).filter((x) => x.role === 'admin')
+      if (admins.length <= 1) {
+        return c.json(
+          { error: 'You are the only admin. Promote another member to admin before deleting your account.' },
+          400,
+        )
+      }
+    }
+    await deps.repo.deleteUser(u.uid)
+    deleteCookie(c, COOKIE, { path: '/' })
+    return c.json({ ok: true })
   })
 
   // ---- Team members (admin only) -------------------------------------------

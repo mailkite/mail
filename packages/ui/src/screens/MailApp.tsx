@@ -6,6 +6,7 @@ import { InboxList } from './InboxList'
 import { MessageView } from './MessageView'
 import { Compose, type ComposeDraft } from './Compose'
 import { Settings } from './Settings'
+import { Profile } from './Profile'
 
 export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () => void }) {
   const [messages, setMessages] = useState<MessageRow[]>([])
@@ -16,11 +17,11 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<ComposeDraft | null>(null)
   const [config, setConfig] = useState<AppConfig | null>(null)
-  const [view, setView] = useState<'mail' | 'settings'>('mail')
+  const [view, setView] = useState<'mail' | 'settings' | 'profile'>('mail')
   const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
-    api.config().then(setConfig).catch(() => setConfig({ sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '' }))
+    api.config().then(setConfig).catch(() => setConfig({ sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '', appName: 'MailKite Mail', logoUrl: '' }))
   }, [])
 
   const load = useCallback(() => {
@@ -75,12 +76,17 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
       canCompose={canSend && view === 'mail'}
       onCompose={() => setDraft({ to: '', subject: '' })}
       user={user}
-      onLogout={onLogout}
+      onProfile={user ? () => { setSelected(null); setView('profile') } : undefined}
+      profileActive={view === 'profile'}
       onSettings={isAdmin ? () => setView('settings') : undefined}
       settingsActive={view === 'settings'}
+      appName={config?.appName}
+      logoUrl={config?.logoUrl}
     >
       {view === 'settings' ? (
         <Settings />
+      ) : view === 'profile' && user ? (
+        <Profile user={user} onLogout={onLogout ?? (() => {})} />
       ) : (
         <div className="grid grid-cols-[340px_1fr] h-full min-h-0">
           <InboxList

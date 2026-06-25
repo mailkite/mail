@@ -31,11 +31,15 @@ export function Auth({
   initialMode = 'login',
   oauth = false,
   googleClientId = '',
+  appName,
+  logoUrl,
   onAuthed,
 }: {
   initialMode?: Mode
   oauth?: boolean
   googleClientId?: string
+  appName?: string
+  logoUrl?: string
   onAuthed: (u: SessionUser) => Promise<void>
 }) {
   const [mode, setMode] = useState<Mode>(initialMode)
@@ -96,7 +100,7 @@ export function Auth({
   const subtitle = mode === 'verify' ? `Enter the code sent to ${email.trim() || 'your email'}.` : undefined
 
   return (
-    <AuthScreen title={title} subtitle={subtitle}>
+    <AuthScreen title={title} subtitle={subtitle} brandName={appName} logoUrl={logoUrl}>
       {mode !== 'verify' && (
         <div className="mb-4">
           {oauth && googleClientId ? (

@@ -2,6 +2,69 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Check, Trash2 } from 'lucide-react'
 import { api, type AdminConfigItem, type TeamUser, type SenderAccount } from '../lib/api'
 import { Button } from '../components/Button'
+import { Logo } from '../components/Logo'
+
+const BRANDING_KEYS = ['APP_NAME', 'LOGO_URL']
+const inputCls =
+  'w-full rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]'
+
+function BrandingSection() {
+  const [name, setName] = useState('')
+  const [logo, setLogo] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.config().then((c) => { setName(c.appName || ''); setLogo(c.logoUrl || '') }).catch(() => {})
+  }, [])
+
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true); setError(null)
+    try {
+      await api.saveConfig('APP_NAME', name.trim())
+      await api.saveConfig('LOGO_URL', logo.trim())
+      if (name.trim()) document.title = name.trim()
+      setSaved(true); setTimeout(() => setSaved(false), 1500)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-lg font-semibold">Branding</h2>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">
+          Your app’s name and logo. The logo is a URL to an image; leave it blank for the MailKite kite.
+        </p>
+      </div>
+      <div className="rounded-lg border border-[var(--color-border)] p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-[var(--color-muted)]">Preview</span>
+          <Logo name={name || 'MailKite Mail'} logoUrl={logo || undefined} />
+        </div>
+        <form onSubmit={save} className="space-y-2">
+          <label className="block space-y-1">
+            <span className="text-xs font-medium text-[var(--color-muted)]">App name</span>
+            <input className={inputCls} placeholder="MailKite Mail" value={name} onChange={(e) => setName(e.target.value)} />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs font-medium text-[var(--color-muted)]">Logo URL</span>
+            <input className={inputCls} placeholder="https://…/logo.svg" value={logo} onChange={(e) => setLogo(e.target.value)} />
+          </label>
+          <div className="flex items-center gap-2">
+            <Button type="submit" disabled={busy}>{saved ? <Check size={16} /> : busy ? 'Saving…' : 'Save'}</Button>
+            {error && <span className="text-sm text-red-400">{error}</span>}
+          </div>
+        </form>
+      </div>
+    </section>
+  )
+}
 
 function SendersSection() {
   const [senders, setSenders] = useState<SenderAccount[] | null>(null)
@@ -278,6 +341,8 @@ export function Settings() {
     <div className="h-full overflow-auto p-6">
       <div className="mx-auto max-w-2xl space-y-4">
         <h1 className="text-2xl font-semibold">Settings</h1>
+
+        <BrandingSection />
 
         <SendersSection />
 

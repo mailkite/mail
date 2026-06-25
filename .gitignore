@@ -24,3 +24,6 @@ data/
 # logs / os
 *.log
 .DS_Store
+
+# turborepo cache
+.turbo/

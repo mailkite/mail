@@ -26,6 +26,8 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 export interface SessionUser {
   email: string
   role: 'admin' | 'user'
+  name?: string | null
+  avatarUrl?: string | null
 }
 
 export interface SenderAccount {
@@ -68,6 +70,8 @@ export interface AppConfig {
   needsSetup: boolean
   oauth: boolean
   googleClientId: string
+  appName: string
+  logoUrl: string
 }
 
 export const api = {
@@ -91,6 +95,7 @@ export const api = {
     postJSON<SessionUser>('/api/auth/google', { code, redirectUri }),
   logout: () =>
     fetch(`${base}/api/admin/logout`, { method: 'POST', credentials: 'include' }).then(() => {}),
+  deleteAccount: () => postJSON<{ ok: boolean }>('/api/admin/account/delete', {}),
 
   // ---- admin config --------------------------------------------------------
   adminConfig: () => getJSON<{ items: AdminConfigItem[] }>('/api/admin/config').then((r) => r.items),

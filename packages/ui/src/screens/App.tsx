@@ -28,7 +28,10 @@ function Splash({ error, onRetry }: { error?: string | null; onRetry?: () => voi
  * session actually stuck (api.me) so a dropped cookie surfaces as a clear error
  * instead of silently bouncing back to the login form.
  */
-const FALLBACK_CONFIG: AppConfig = { sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '' }
+const FALLBACK_CONFIG: AppConfig = {
+  sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '',
+  appName: 'MailKite Mail', logoUrl: '',
+}
 const GOOGLE_CALLBACK = '/auth/google/callback'
 
 export function App() {
@@ -79,6 +82,11 @@ export function App() {
     void refresh()
   }, [refresh])
 
+  // Reflect the configured app name in the tab title.
+  useEffect(() => {
+    if (config?.appName) document.title = config.appName
+  }, [config?.appName])
+
   if (!ready || !config) return <Splash error={loadError} onRetry={refresh} />
 
   // No users yet → first signup (that user becomes admin); otherwise sign in.
@@ -88,6 +96,8 @@ export function App() {
         initialMode={config.needsSetup ? 'signup' : 'login'}
         oauth={config.oauth}
         googleClientId={config.googleClientId}
+        appName={config.appName}
+        logoUrl={config.logoUrl}
         onAuthed={confirmSession}
       />
     )

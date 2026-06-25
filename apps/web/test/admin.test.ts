@@ -82,6 +82,39 @@ describe('team invites + gating', () => {
   })
 })
 
+describe('delete account', () => {
+  it('lets an admin delete themselves while others remain, but blocks the final admin', async () => {
+    let sentText = ''
+    const { app, repo } = await makeApp(
+      { apiKey: 'mk', from: 'no@x' },
+      async (input) => { sentText = String(input.text ?? ''); return { id: 'o', status: 'queued' } },
+    )
+    const activate = async (email: string) => {
+      await post(app, '/api/admin/signup', { email, password: 'longenough' })
+      const code = sentText.match(/\b(\d{6})\b/)?.[1]
+      return cookieOf(await post(app, '/api/admin/verify', { email, code }))
+    }
+
+    // first signup becomes admin; that admin invites a second admin, who activates
+    const bossCookie = await activate('boss@x.com')
+    await post(app, '/api/admin/users', { email: 'second@x.com', role: 'admin' }, bossCookie)
+    const secondCookie = await activate('second@x.com')
+
+    // unauthenticated delete is refused
+    expect((await post(app, '/api/admin/account/delete', {})).status).toBe(401)
+
+    // one of two admins can delete their own account
+    expect((await post(app, '/api/admin/account/delete', {}, bossCookie)).status).toBe(200)
+    expect(await repo.getUserByEmail('boss@x.com')).toBeUndefined()
+
+    // the remaining admin is the last one — blocked, account preserved
+    const blocked = await post(app, '/api/admin/account/delete', {}, secondCookie)
+    expect(blocked.status).toBe(400)
+    expect(String((await json(blocked)).error)).toContain('only admin')
+    expect(await repo.getUserByEmail('second@x.com')).toBeDefined()
+  })
+})
+
 describe('admin config', () => {
   it('is role-gated; env-first with a saved fallback; gates sending', async () => {
     const { app } = await makeApp({ adminEmail: 'admin@x', adminPassword: 'pw' }) // no apiKey in env

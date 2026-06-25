@@ -17,6 +17,8 @@ export interface Env {
   ADMIN_PASSWORD?: string
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
+  APP_NAME?: string
+  LOGO_URL?: string
 }
 
 // Cached per isolate. Prefer setting SESSION_SECRET as a wrangler secret in
@@ -58,6 +60,8 @@ export default {
         adminPassword: env.ADMIN_PASSWORD,
         googleClientId: env.GOOGLE_CLIENT_ID,
         googleClientSecret: env.GOOGLE_CLIENT_SECRET,
+        appName: env.APP_NAME,
+        logoUrl: env.LOGO_URL,
       },
     })
     return app.fetch(request)
