@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { MailRepo, type BlobStore } from '@mailkite/core/server'
+import { MailRepo, hashPassword, type BlobStore } from '@mailkite/core/server'
 import { SqliteDriver } from '@mailkite/core/server/node'
 import { createApp, type AppDeps } from '../src/app'
 
@@ -171,6 +171,32 @@ describe('access management', () => {
 
     // unauthenticated is blocked
     expect((await app.fetch(new Request('http://x/api/admin/access'))).status).toBe(401)
+  })
+})
+
+describe('team-admin tier', () => {
+  it('a team-admin manages only their own team; a plain member cannot', async () => {
+    const { app, repo } = await makeApp({ adminEmail: 'admin@x', adminPassword: 'pw' })
+    const adminCookie = cookieOf(await post(app, '/api/admin/login', { email: 'admin@x', password: 'pw' }))
+
+    // two real members (with login passwords), one team
+    const pw = 'memberpass1'
+    for (const id of ['u1', 'u2']) {
+      await repo.createUser({ id, email: `${id}@x.com`, password_hash: await hashPassword(pw), role: 'user', created_at: 0, status: 'active' })
+    }
+    const teamId = (await json(await post(app, '/api/admin/teams', { name: 'Support' }, adminCookie))).id as string
+    await post(app, `/api/admin/teams/${teamId}/members`, { userId: 'u1', role: 'admin' }, adminCookie) // u1 = team-admin
+
+    const u1Cookie = cookieOf(await post(app, '/api/admin/login', { email: 'u1@x.com', password: pw }))
+    const u2Cookie = cookieOf(await post(app, '/api/admin/login', { email: 'u2@x.com', password: pw }))
+
+    // u1 (team-admin) adds u2 to their team; u2 (plain member) cannot manage it
+    expect((await post(app, `/api/teams/${teamId}/members`, { userId: 'u2' }, u1Cookie)).status).toBe(201)
+    expect((await post(app, `/api/teams/${teamId}/members`, { userId: 'u1' }, u2Cookie)).status).toBe(403)
+
+    // GET /api/teams shows u1 their team with myRole=admin
+    const mine = await json(await app.fetch(new Request('http://x/api/teams', { headers: { cookie: u1Cookie } })))
+    expect((mine.teams as Array<{ id: string; myRole: string }>).find((t) => t.id === teamId)?.myRole).toBe('admin')
   })
 })
 

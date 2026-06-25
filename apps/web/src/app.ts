@@ -401,9 +401,9 @@ export function createApp(deps: AppDeps) {
     return c.json({ ok: true })
   })
   app.post('/api/admin/teams/:id/members', requireAdmin, async (c) => {
-    const body = (await c.req.json().catch(() => null)) as { userId?: string } | null
+    const body = (await c.req.json().catch(() => null)) as { userId?: string; role?: string } | null
     if (!body?.userId) return c.json({ error: 'userId required' }, 400)
-    await deps.repo.addTeamMember(c.req.param('id')!, body.userId)
+    await deps.repo.addTeamMember(c.req.param('id')!, body.userId, body.role === 'admin' ? 'admin' : 'member')
     return c.json({ ok: true }, 201)
   })
   app.delete('/api/admin/teams/:id/members/:userId', requireAdmin, async (c) => {
@@ -551,6 +551,42 @@ export function createApp(deps: AppDeps) {
     await deps.repo.createAddress(a)
     await deps.repo.grantAddressToUser(a.id, actor.userId, now)
     return c.json({ address }, 201)
+  })
+
+  // ---- Team-admin: manage your own team's membership -----------------------
+  // A team-admin (team_members.role='admin') — or a global admin — may add/remove
+  // members of THAT team. They cannot create teams or touch other teams/grants.
+  const canAdminTeam = async (c: Context<AppEnv>, teamId: string) => {
+    const actor = actorOf(c)
+    return actor.isAdmin || (await deps.repo.isTeamAdmin(teamId, actor.userId))
+  }
+
+  app.get('/api/teams', requireAuth, async (c) => {
+    const actor = actorOf(c)
+    const mine = await deps.repo.teamsForUser(actor.userId)
+    const roleByTeam = new Map(mine.map((m) => [m.team_id, m.role]))
+    const teams = (await deps.repo.listTeams())
+      .filter((t) => roleByTeam.has(t.id))
+      .map((t) => ({ ...t, myRole: roleByTeam.get(t.id) }))
+    const members = (await deps.repo.listTeamMembers()).filter((m) => roleByTeam.has(m.team_id))
+    const users = (await deps.repo.listUsers()).map((u) => ({ id: u.id, email: u.email }))
+    return c.json({ teams, members, users })
+  })
+
+  app.post('/api/teams/:id/members', requireAuth, async (c) => {
+    const id = c.req.param('id')!
+    if (!(await canAdminTeam(c, id))) return c.json({ error: 'not a team admin' }, 403)
+    const body = (await c.req.json().catch(() => null)) as { userId?: string } | null
+    if (!body?.userId) return c.json({ error: 'userId required' }, 400)
+    await deps.repo.addTeamMember(id, body.userId)
+    return c.json({ ok: true }, 201)
+  })
+
+  app.delete('/api/teams/:id/members/:userId', requireAuth, async (c) => {
+    const id = c.req.param('id')!
+    if (!(await canAdminTeam(c, id))) return c.json({ error: 'not a team admin' }, 403)
+    await deps.repo.removeTeamMember(id, c.req.param('userId')!)
+    return c.json({ ok: true })
   })
 
   // Provisioned send-as addresses (team-wide, no ACL — any member manages them).

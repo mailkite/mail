@@ -219,6 +219,17 @@ export class MailRepo {
   async listTeamMembers(): Promise<{ team_id: string; user_id: string; role: string }[]> {
     return this.sql.all('SELECT team_id, user_id, role FROM team_members')
   }
+  async teamsForUser(userId: string): Promise<{ team_id: string; role: string }[]> {
+    return this.sql.all('SELECT team_id, role FROM team_members WHERE user_id = ?', [userId])
+  }
+  /** True if the user is an admin of the given team (manages its membership). */
+  async isTeamAdmin(teamId: string, userId: string): Promise<boolean> {
+    const row = await this.sql.get<{ x: number }>(
+      "SELECT 1 AS x FROM team_members WHERE team_id = ? AND user_id = ? AND role = 'admin'",
+      [teamId, userId],
+    )
+    return !!row
+  }
   async listGrants(): Promise<{ address_id: string; user_id: string | null; team_id: string | null }[]> {
     return this.sql.all('SELECT address_id, user_id, team_id FROM address_grants')
   }

@@ -22,7 +22,7 @@ in [`teams.md`](teams.md).
 | A3 — Admin: addresses/teams/grants | ✅ |
 | A4 — Onboarding & open registration | ✅ |
 | A5 — Scoped API + UI | ✅ |
-| A6 — Team-admin tier *(optional)* | ⬜ |
+| A6 — Team-admin tier *(optional)* | ✅ backend |
 
 ## Principles
 
