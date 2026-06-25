@@ -51,6 +51,37 @@ describe('signup → email code → verify', () => {
   })
 })
 
+describe('team invites + gating', () => {
+  it('admin invites; invited email can sign up; uninvited is rejected', async () => {
+    let sentText = ''
+    const { app } = await makeApp(
+      { adminEmail: 'admin@x', adminPassword: 'pw', apiKey: 'mk', from: 'no@x' },
+      async (input) => { sentText = String(input.text ?? ''); return { id: 'o', status: 'queued' } },
+    )
+    const adminCookie = cookieOf(await post(app, '/api/admin/login', { email: 'admin@x', password: 'pw' }))
+
+    // an uninvited signup is rejected (an admin/users exist via env-admin? env-admin isn't a row)
+    // seed a real admin row so countUsers > 0
+    await post(app, '/api/admin/users', { email: 'mate@x.com', role: 'user' }, adminCookie)
+    const list1 = (await json(await app.fetch(new Request('http://x/api/admin/users', { headers: { cookie: adminCookie } })))).users as Array<{ email: string; status: string }>
+    expect(list1.find((u) => u.email === 'mate@x.com')?.status).toBe('invited')
+
+    // uninvited → 403
+    expect((await post(app, '/api/admin/signup', { email: 'random@x.com', password: 'longenough' })).status).toBe(403)
+
+    // invited → signup works → code → verify → active (role preserved as member)
+    expect((await post(app, '/api/admin/signup', { email: 'mate@x.com', password: 'longenough' })).status).toBe(201)
+    const code = sentText.match(/\b(\d{6})\b/)?.[1]
+    const verify = await post(app, '/api/admin/verify', { email: 'mate@x.com', code })
+    expect(verify.status).toBe(200)
+    expect((await json(verify)).role).toBe('user')
+
+    // non-admin can't list users
+    const mateCookie = cookieOf(verify)
+    expect((await app.fetch(new Request('http://x/api/admin/users', { headers: { cookie: mateCookie } }))).status).toBe(403)
+  })
+})
+
 describe('admin config', () => {
   it('is role-gated; env-first with a saved fallback; gates sending', async () => {
     const { app } = await makeApp({ adminEmail: 'admin@x', adminPassword: 'pw' }) // no apiKey in env

@@ -141,6 +141,18 @@ export class MailRepo {
     return this.sql.get<UserRow>('SELECT * FROM users WHERE email = ?', [email])
   }
 
+  async listUsers(): Promise<UserRow[]> {
+    return this.sql.all<UserRow>('SELECT * FROM users ORDER BY created_at ASC')
+  }
+
+  async getUserById(id: string): Promise<UserRow | undefined> {
+    return this.sql.get<UserRow>('SELECT * FROM users WHERE id = ?', [id])
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await this.sql.run('DELETE FROM users WHERE id = ?', [id])
+  }
+
   async createUser(u: UserRow): Promise<void> {
     await this.sql.run(
       `INSERT INTO users (id, email, password_hash, role, created_at, name, provider, google_sub, status, invited_by, avatar_url)

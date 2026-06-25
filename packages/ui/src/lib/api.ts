@@ -28,6 +28,15 @@ export interface SessionUser {
   role: 'admin' | 'user'
 }
 
+export interface TeamUser {
+  id: string
+  email: string
+  role: 'admin' | 'user'
+  status: 'active' | 'pending' | 'invited'
+  provider: 'password' | 'google'
+  name: string | null
+}
+
 export interface AdminConfigItem {
   key: string
   secret: boolean
@@ -79,6 +88,15 @@ export const api = {
   adminConfig: () => getJSON<{ items: AdminConfigItem[] }>('/api/admin/config').then((r) => r.items),
   saveConfig: (key: string, value: string) =>
     postJSON<{ ok: boolean }>('/api/admin/config', { key, value }),
+
+  // ---- team members (admin) ------------------------------------------------
+  users: () => getJSON<{ users: TeamUser[] }>('/api/admin/users').then((r) => r.users),
+  inviteUser: (email: string, role: 'admin' | 'user') =>
+    postJSON<TeamUser>('/api/admin/users', { email, role }),
+  removeUser: async (id: string): Promise<void> => {
+    const res = await fetch(`${base}/api/admin/users/${id}`, { method: 'DELETE', credentials: 'include' })
+    if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'remove failed')
+  },
 
   listMessages: (opts: { folder?: Folder; q?: string } = {}) => {
     const p = new URLSearchParams()

@@ -1,7 +1,99 @@
-import { useEffect, useState } from 'react'
-import { Check } from 'lucide-react'
-import { api, type AdminConfigItem } from '../lib/api'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Check, Trash2 } from 'lucide-react'
+import { api, type AdminConfigItem, type TeamUser } from '../lib/api'
 import { Button } from '../components/Button'
+
+const STATUS_BADGE: Record<TeamUser['status'], [string, string]> = {
+  active: ['Active', 'text-emerald-300 bg-emerald-500/10'],
+  invited: ['Invited', 'text-amber-300 bg-amber-500/10'],
+  pending: ['Unverified', 'text-sky-300 bg-sky-500/10'],
+}
+
+function TeamSection() {
+  const [users, setUsers] = useState<TeamUser[] | null>(null)
+  const [email, setEmail] = useState('')
+  const [role, setRole] = useState<'admin' | 'user'>('user')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = async () => {
+    try { setUsers(await api.users()) } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load team') }
+  }
+  useEffect(() => { void load() }, [])
+
+  async function invite(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true); setError(null)
+    try {
+      await api.inviteUser(email.trim(), role)
+      setEmail('')
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Invite failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove(u: TeamUser) {
+    if (!confirm(`Remove ${u.email} from the team?`)) return
+    try { await api.removeUser(u.id); await load() } catch (e) { setError(e instanceof Error ? e.message : 'Remove failed') }
+  }
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-lg font-semibold">Team</h2>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">
+          Invite teammates by email. They join by signing in (email code or Google) with that
+          address; uninvited sign-ins are rejected.
+        </p>
+      </div>
+
+      <form onSubmit={invite} className="flex gap-2">
+        <input
+          type="email"
+          required
+          placeholder="teammate@company.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="flex-1 rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
+        />
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value as 'admin' | 'user')}
+          className="rounded-md border border-[var(--color-border)] bg-transparent px-2 py-2 text-sm outline-none"
+        >
+          <option value="user">Member</option>
+          <option value="admin">Admin</option>
+        </select>
+        <Button type="submit" disabled={busy || !email.trim()}>{busy ? 'Inviting…' : 'Invite'}</Button>
+      </form>
+      {error && <p className="text-sm text-red-400">{error}</p>}
+
+      <div className="rounded-lg border border-[var(--color-border)] divide-y divide-[var(--color-border)]">
+        {!users && <p className="p-3 text-sm text-[var(--color-muted)]">Loading…</p>}
+        {users?.map((u) => {
+          const [label, cls] = STATUS_BADGE[u.status]
+          return (
+            <div key={u.id} className="flex items-center gap-3 p-3 text-sm">
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium">{u.email}</div>
+                <div className="text-xs text-[var(--color-muted)]">
+                  {u.role === 'admin' ? 'Admin' : 'Member'} · {u.provider === 'google' ? 'Google' : 'Password'}
+                </div>
+              </div>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>
+              <button onClick={() => remove(u)} title="Remove" className="text-[var(--color-muted)] hover:text-red-400">
+                <Trash2 size={15} />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
 
 const LABELS: Record<string, string> = {
   MAILKITE_API_KEY: 'MailKite API key',
@@ -107,8 +199,12 @@ export function Settings() {
   return (
     <div className="h-full overflow-auto p-6">
       <div className="mx-auto max-w-2xl space-y-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Settings</h1>
+        <h1 className="text-2xl font-semibold">Settings</h1>
+
+        <TeamSection />
+
+        <div className="pt-2">
+          <h2 className="text-lg font-semibold">Configuration</h2>
           <p className="mt-1 text-sm text-[var(--color-muted)]">
             Keys each feature needs. Values set in the environment win and can’t be changed here; the
             rest can be saved below. A feature stays disabled until its key is present.

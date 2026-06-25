@@ -13,7 +13,7 @@ import {
   exchangeGoogleCode,
   decodeGoogleIdToken,
 } from '@mailkite/core/server'
-import type { SendInput, SendResult, SessionPayload } from '@mailkite/core/server'
+import type { SendInput, SendResult, SessionPayload, UserRow } from '@mailkite/core/server'
 
 export interface AppEnvConfig {
   webhookSecret?: string
@@ -150,9 +150,14 @@ export function createApp(deps: AppDeps) {
     const existing = await deps.repo.getUserByEmail(email)
     if (existing && existing.status === 'active') return c.json({ error: 'account exists — sign in' }, 409)
 
+    const count = await deps.repo.countUsers()
+    if (!existing && count > 0) {
+      return c.json({ error: 'not invited — ask your team admin to add you' }, 403)
+    }
+
     const passwordHash = await hashPassword(body.password)
     if (!existing) {
-      const role = (await deps.repo.countUsers()) === 0 ? 'admin' : 'user'
+      const role = count === 0 ? 'admin' : 'user' // first user is the admin
       await deps.repo.createUser({
         id: `usr_${crypto.randomUUID()}`,
         email,
@@ -231,8 +236,12 @@ export function createApp(deps: AppDeps) {
     if (!identity || identity.aud !== clientId || !identity.email) {
       return c.json({ error: 'Google sign-in failed' }, 401)
     }
+    const gEmail = identity.email.toLowerCase()
+    if (!(await deps.repo.getUserByEmail(gEmail)) && (await deps.repo.countUsers()) > 0) {
+      return c.json({ error: 'not invited — ask your team admin to add you' }, 403)
+    }
     const u = await deps.repo.upsertGoogleUser({
-      email: identity.email.toLowerCase(),
+      email: gEmail,
       sub: identity.sub,
       name: identity.name,
       picture: identity.picture,
@@ -249,6 +258,49 @@ export function createApp(deps: AppDeps) {
   app.get('/api/admin/me', requireAuth, (c) => {
     const u = c.get('user') as SessionPayload
     return c.json({ email: u.email, role: u.role })
+  })
+
+  // ---- Team members (admin only) -------------------------------------------
+  const publicUser = (u: UserRow) => ({
+    id: u.id,
+    email: u.email,
+    role: u.role,
+    status: u.status ?? 'active',
+    provider: u.provider ?? 'password',
+    name: u.name ?? null,
+  })
+
+  app.get('/api/admin/users', requireAdmin, async (c) => {
+    return c.json({ users: (await deps.repo.listUsers()).map(publicUser) })
+  })
+
+  // Invite by email: creates an 'invited' member. They join by signing in
+  // (email+code or Google) with that address; uninvited sign-ins are rejected.
+  app.post('/api/admin/users', requireAdmin, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { email?: string; role?: string } | null
+    if (!body?.email) return c.json({ error: 'email required' }, 400)
+    const email = norm(body.email)
+    if (await deps.repo.getUserByEmail(email)) return c.json({ error: 'user already exists' }, 409)
+    const u: UserRow = {
+      id: `usr_${crypto.randomUUID()}`,
+      email,
+      password_hash: '',
+      role: body.role === 'admin' ? 'admin' : 'user',
+      created_at: Date.now(),
+      status: 'invited',
+      invited_by: c.get('user').email,
+    }
+    await deps.repo.createUser(u)
+    return c.json(publicUser(u), 201)
+  })
+
+  app.delete('/api/admin/users/:id', requireAdmin, async (c) => {
+    const id = c.req.param('id')!
+    const target = await deps.repo.getUserById(id)
+    if (!target) return c.json({ error: 'not found' }, 404)
+    if (target.id === c.get('user').uid) return c.json({ error: 'you cannot remove yourself' }, 400)
+    await deps.repo.deleteUser(id)
+    return c.json({ ok: true })
   })
 
   // ---- Admin config (admin only) -------------------------------------------
