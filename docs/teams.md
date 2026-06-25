@@ -1,5 +1,12 @@
 # MailKite Mail — team email over a shared domain
 
+> **⚠️ Superseded (2026-06) by the scoped-access pivot.** The "everyone shares the whole domain, no
+> per-user ACL" decision below is **reversed**. MailKite Mail is now domain-owner-first with
+> **tiered, scoped access** — owner sees all, teams see a subset of addresses, users see a
+> subset/one. See [`audience.md`](audience.md), [`acl.md`](acl.md),
+> [`access-architecture.md`](access-architecture.md), and [`implementation-acl.md`](implementation-acl.md).
+> This doc is kept for the membership/invite/identity building blocks it still describes accurately.
+
 > **One-liner:** MailKite Mail is **email for teams, not end users.** A team owns a
 > **whole domain** (e.g. `sendhog.com`); the admin **invites teammates**, who sign in
 > with **Google OAuth**; everyone shares access to the domain's mail and can **send as
