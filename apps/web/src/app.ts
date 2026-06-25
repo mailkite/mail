@@ -590,6 +590,15 @@ export function createApp(deps: AppDeps) {
     if (!from) {
       return c.json({ error: 'no From address — pick one in the message or set MAILKITE_FROM in Settings' }, 400)
     }
+    // ACL: a member may only send as an address granted to them (admin: any).
+    const actor = actorOf(c)
+    if (!actor.isAdmin) {
+      const fromAddr = (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase()
+      const granted = await deps.repo.listIdentities(actor)
+      if (!granted.includes(fromAddr)) {
+        return c.json({ error: 'you can only send from an address granted to you' }, 403)
+      }
+    }
     const apiBase = (await resolve('MAILKITE_API_BASE', deps.env.apiBase)) || 'https://api.mailkite.dev'
     try {
       const result = await sendEmail(

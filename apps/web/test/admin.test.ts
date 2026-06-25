@@ -144,6 +144,10 @@ describe('open registration + claim', () => {
     // claiming gives exactly that one mailbox
     const id2 = await json(await app.fetch(new Request('http://x/api/identities', { headers: { cookie: strangerCookie } })))
     expect(id2.identities).toContain('me@x.com')
+
+    // ACL on send: the member may send AS their granted address, but not another
+    expect((await post(app, '/api/send', { from: 'me@x.com', to: 'a@b.com', subject: 'hi', text: 'x' }, strangerCookie)).status).toBe(201)
+    expect((await post(app, '/api/send', { from: 'other@x.com', to: 'a@b.com', subject: 'hi', text: 'x' }, strangerCookie)).status).toBe(403)
   })
 })
 
