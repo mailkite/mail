@@ -63,8 +63,11 @@ export const api = {
   },
   login: (email: string, password: string) =>
     postJSON<SessionUser>('/api/admin/login', { email, password }),
-  setup: (email: string, password: string) =>
-    postJSON<SessionUser>('/api/admin/setup', { email, password }),
+  signup: (email: string, password: string) =>
+    postJSON<{ status: string; email: string }>('/api/admin/signup', { email, password }),
+  verify: (email: string, code: string) =>
+    postJSON<SessionUser>('/api/admin/verify', { email, code }),
+  resend: (email: string) => postJSON<{ ok: boolean }>('/api/admin/resend', { email }),
   logout: () =>
     fetch(`${base}/api/admin/logout`, { method: 'POST', credentials: 'include' }).then(() => {}),
 

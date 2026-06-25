@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, type AppConfig, type SessionUser } from '../lib/api'
 import { MailApp } from './MailApp'
-import { Login } from './Login'
-import { SetupWizard } from './SetupWizard'
+import { Auth } from './Auth'
 
 function Splash({ error, onRetry }: { error?: string | null; onRetry?: () => void }) {
   return (
@@ -68,26 +67,9 @@ export function App() {
 
   if (!ready || !config) return <Splash error={loadError} onRetry={refresh} />
 
-  if (config.needsSetup && !user) {
-    return (
-      <SetupWizard
-        onCreate={async (email, password) => {
-          const u = await api.setup(email, password)
-          await confirmSession(u)
-        }}
-      />
-    )
-  }
-
+  // No users yet → first signup (that user becomes admin); otherwise sign in.
   if (!user) {
-    return (
-      <Login
-        onLogin={async (email, password) => {
-          const u = await api.login(email, password)
-          await confirmSession(u)
-        }}
-      />
-    )
+    return <Auth initialMode={config.needsSetup ? 'signup' : 'login'} onAuthed={confirmSession} />
   }
 
   return (
