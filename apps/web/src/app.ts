@@ -26,6 +26,7 @@ export interface AppEnvConfig {
   googleClientSecret?: string
   appName?: string
   logoUrl?: string
+  addressMode?: string
 }
 
 export interface AppDeps {
@@ -50,6 +51,7 @@ const CONFIG_ITEMS = [
   { key: 'GOOGLE_CLIENT_SECRET', secret: true, gates: 'google sign-in', env: (e: AppEnvConfig) => e.googleClientSecret },
   { key: 'APP_NAME', secret: false, gates: 'branding', env: (e: AppEnvConfig) => e.appName },
   { key: 'LOGO_URL', secret: false, gates: 'branding', env: (e: AppEnvConfig) => e.logoUrl },
+  { key: 'ADDRESS_MODE', secret: false, gates: 'inbound', env: (e: AppEnvConfig) => e.addressMode },
 ] as const
 
 const CONFIG_KEYS = new Set<string>(CONFIG_ITEMS.map((i) => i.key))
@@ -389,7 +391,8 @@ export function createApp(deps: AppDeps) {
     }
     if (payload?.type !== 'email.received') return c.json({ error: 'unsupported event' }, 422)
 
-    const { stored } = await deps.repo.ingestWebhookMessage(payload, { now: Date.now(), fetchAttachment })
+    const addressMode = (await resolve('ADDRESS_MODE', deps.env.addressMode)) === 'provisioned' ? 'provisioned' : 'open'
+    const { stored } = await deps.repo.ingestWebhookMessage(payload, { now: Date.now(), fetchAttachment, addressMode })
     return c.json({ id: payload.id, stored }, stored ? 201 : 200)
   })
 

@@ -10,6 +10,9 @@ export interface IngestOptions {
   now: number
   /** Download an attachment's bytes from its (short-lived, signed) source URL. */
   fetchAttachment: (url: string) => Promise<Uint8Array>
+  /** 'open' (default): auto-create the receiving address. 'provisioned': only
+   *  store mail to addresses the owner has provisioned; drop the rest. */
+  addressMode?: 'open' | 'provisioned'
 }
 
 const FLAG_COLUMNS = ['unread', 'starred', 'archived'] as const
@@ -34,7 +37,14 @@ export class MailRepo {
     if (seen) return { stored: false }
 
     const m = mapWebhookToMessage(payload, opts.now)
-    const addressId = await this.resolveAddressId(m.to_addr, opts.now)
+    let addressId: string | null
+    if (opts.addressMode === 'provisioned') {
+      const addr = m.to_addr ? await this.getAddressByName(m.to_addr) : undefined
+      if (!addr) return { stored: false } // drop mail to an unprovisioned address
+      addressId = addr.id
+    } else {
+      addressId = await this.resolveAddressId(m.to_addr, opts.now) // open: auto-create
+    }
 
     await this.sql.run(
       `INSERT OR IGNORE INTO threads (id, subject, last_received_at, message_count) VALUES (?, ?, ?, 0)`,

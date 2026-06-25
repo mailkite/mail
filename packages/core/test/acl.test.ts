@@ -63,4 +63,26 @@ describe('ACL — address-scoped access (deny-by-default)', () => {
     await repo.revokeUserGrant(support.id, 'u1')
     expect(await repo.listMessages(member('u1'))).toEqual([])
   })
+
+  it('ingest policy: open auto-creates the address; provisioned drops unknown addresses', async () => {
+    const repo = new MailRepo(new SqliteDriver(':memory:'), blobs)
+    await repo.migrate()
+    const fetchAttachment = async () => new Uint8Array()
+
+    // open (default): unknown address is auto-created + stored
+    const open = await repo.ingestWebhookMessage(msg('o1', 'new@x.com', 'hi'), { now: 1, fetchAttachment })
+    expect(open.stored).toBe(true)
+    expect(await repo.getAddressByName('new@x.com')).toBeDefined()
+
+    // provisioned: mail to an unprovisioned address is dropped (not stored)
+    const dropped = await repo.ingestWebhookMessage(msg('p1', 'ghost@x.com', 'spam'), { now: 2, fetchAttachment, addressMode: 'provisioned' })
+    expect(dropped.stored).toBe(false)
+    expect(await repo.getAddressByName('ghost@x.com')).toBeUndefined()
+    expect((await repo.listMessages(ADMIN)).map((m) => m.id)).toEqual(['o1'])
+
+    // provisioned: mail to a provisioned address IS stored
+    await repo.createAddress({ id: 'adr_p', address: 'help@x.com', label: null, created_at: 0 })
+    const kept = await repo.ingestWebhookMessage(msg('p2', 'help@x.com', 'ticket'), { now: 3, fetchAttachment, addressMode: 'provisioned' })
+    expect(kept.stored).toBe(true)
+  })
 })

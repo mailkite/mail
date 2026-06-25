@@ -19,6 +19,7 @@ export interface Env {
   GOOGLE_CLIENT_SECRET?: string
   APP_NAME?: string
   LOGO_URL?: string
+  ADDRESS_MODE?: string
 }
 
 // Cached per isolate. Prefer setting SESSION_SECRET as a wrangler secret in
@@ -62,6 +63,7 @@ export default {
         googleClientSecret: env.GOOGLE_CLIENT_SECRET,
         appName: env.APP_NAME,
         logoUrl: env.LOGO_URL,
+        addressMode: env.ADDRESS_MODE,
       },
     })
     return app.fetch(request)
