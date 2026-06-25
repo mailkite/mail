@@ -10,6 +10,20 @@ This is the implementation doc for the access pivot. It builds on the shipped te
 [`implementation.md`](implementation.md) phases T1–T4) and **reverses** the "no per-user ACL" decision
 in [`teams.md`](teams.md).
 
+## Status (live)
+
+`✅ done` · `🚧 in progress` · `⬜ not started` — updated as phases land.
+
+| Phase | Status |
+|---|---|
+| A0 — Schema + backfill | ✅ |
+| A1 — Enforcement core (scoped repo + lint + negatives) | 🚧 |
+| A2 — Ingest anchor | ⬜ |
+| A3 — Admin: addresses/teams/grants | ⬜ |
+| A4 — Onboarding & open registration | ⬜ |
+| A5 — Scoped API + UI | ⬜ |
+| A6 — Team-admin tier *(optional)* | ⬜ |
+
 ## Principles
 
 - **Enforcement first.** The scoped repository + predicate + lint + negative tests (A1) land before

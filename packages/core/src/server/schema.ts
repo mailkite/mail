@@ -26,11 +26,13 @@ CREATE TABLE IF NOT EXISTS messages (
   unread      INTEGER NOT NULL DEFAULT 1,
   starred     INTEGER NOT NULL DEFAULT 0,
   archived    INTEGER NOT NULL DEFAULT 0,
-  received_at INTEGER NOT NULL
+  received_at INTEGER NOT NULL,
+  address_id  TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_messages_received ON messages (received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_thread   ON messages (thread_id);
 CREATE INDEX IF NOT EXISTS idx_messages_folder   ON messages (archived, starred, received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_address  ON messages (address_id, received_at DESC);
 
 CREATE TABLE IF NOT EXISTS attachments (
   id           TEXT PRIMARY KEY,
@@ -100,4 +102,34 @@ CREATE TABLE IF NOT EXISTS email_codes (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_email_codes_email ON email_codes (email);
+
+-- ACL (see docs/acl.md): the resource is the mailbox address; access is a grant
+-- (direct user→address or via a team). Admin (users.role='admin') sees all.
+CREATE TABLE IF NOT EXISTS addresses (
+  id         TEXT PRIMARY KEY,
+  address    TEXT NOT NULL UNIQUE,
+  label      TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS teams (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS team_members (
+  team_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  role    TEXT NOT NULL DEFAULT 'member',
+  PRIMARY KEY (team_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS address_grants (
+  address_id TEXT NOT NULL,
+  user_id    TEXT,
+  team_id    TEXT,
+  created_at INTEGER NOT NULL,
+  CHECK ((user_id IS NOT NULL) <> (team_id IS NOT NULL)),
+  UNIQUE (address_id, user_id, team_id)
+);
+CREATE INDEX IF NOT EXISTS idx_grants_user ON address_grants (user_id);
+CREATE INDEX IF NOT EXISTS idx_grants_team ON address_grants (team_id);
 `
