@@ -1,6 +1,7 @@
 export { App } from './screens/App'
 export { MailApp } from './screens/MailApp'
 export { Auth } from './screens/Auth'
+export { ClaimMailbox } from './screens/ClaimMailbox'
 export { Settings } from './screens/Settings'
 export { AppShell } from './screens/AppShell'
 export { Compose } from './screens/Compose'

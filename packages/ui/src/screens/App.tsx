@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, type AppConfig, type SessionUser } from '../lib/api'
 import { MailApp } from './MailApp'
 import { Auth } from './Auth'
+import { ClaimMailbox } from './ClaimMailbox'
 
 function Splash({ error, onRetry }: { error?: string | null; onRetry?: () => void }) {
   return (
@@ -30,7 +31,7 @@ function Splash({ error, onRetry }: { error?: string | null; onRetry?: () => voi
  */
 const FALLBACK_CONFIG: AppConfig = {
   sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '',
-  appName: 'MailKite Mail', logoUrl: '',
+  appName: 'MailKite Mail', logoUrl: '', openRegistration: false,
 }
 const GOOGLE_CALLBACK = '/auth/google/callback'
 
@@ -39,6 +40,7 @@ export function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
   const [ready, setReady] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [claimNeeded, setClaimNeeded] = useState<boolean | null>(false)
 
   // Run after a successful login/signup/oauth: confirm the session cookie is honored.
   const confirmSession = useCallback(async (fallback: SessionUser) => {
@@ -87,6 +89,14 @@ export function App() {
     if (config?.appName) document.title = config.appName
   }, [config?.appName])
 
+  // A signed-in non-admin with open registration may need to claim a mailbox.
+  useEffect(() => {
+    if (!user) { setClaimNeeded(false); return }
+    if (user.role === 'admin') { setClaimNeeded(false); return }
+    setClaimNeeded(null)
+    api.registrationStatus().then((s) => setClaimNeeded(s.canClaim)).catch(() => setClaimNeeded(false))
+  }, [user])
+
   if (!ready || !config) return <Splash error={loadError} onRetry={refresh} />
 
   // No users yet → first signup (that user becomes admin); otherwise sign in.
@@ -99,6 +109,18 @@ export function App() {
         appName={config.appName}
         logoUrl={config.logoUrl}
         onAuthed={confirmSession}
+      />
+    )
+  }
+
+  // A self-registered user with no mailbox yet (open registration) claims one.
+  if (claimNeeded === null) return <Splash />
+  if (claimNeeded) {
+    return (
+      <ClaimMailbox
+        appName={config.appName}
+        logoUrl={config.logoUrl}
+        onClaimed={async () => { setClaimNeeded(false); await refresh() }}
       />
     )
   }

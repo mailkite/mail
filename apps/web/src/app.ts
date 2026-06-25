@@ -27,6 +27,7 @@ export interface AppEnvConfig {
   appName?: string
   logoUrl?: string
   addressMode?: string
+  openRegistration?: string
 }
 
 export interface AppDeps {
@@ -52,7 +53,13 @@ const CONFIG_ITEMS = [
   { key: 'APP_NAME', secret: false, gates: 'branding', env: (e: AppEnvConfig) => e.appName },
   { key: 'LOGO_URL', secret: false, gates: 'branding', env: (e: AppEnvConfig) => e.logoUrl },
   { key: 'ADDRESS_MODE', secret: false, gates: 'inbound', env: (e: AppEnvConfig) => e.addressMode },
+  { key: 'OPEN_REGISTRATION', secret: false, gates: 'signups', env: (e: AppEnvConfig) => e.openRegistration },
 ] as const
+
+// Localparts no one may self-claim.
+const RESERVED_LOCALPARTS = new Set([
+  'admin', 'postmaster', 'abuse', 'hostmaster', 'webmaster', 'noreply', 'no-reply', 'mailer-daemon', 'root',
+])
 
 const CONFIG_KEYS = new Set<string>(CONFIG_ITEMS.map((i) => i.key))
 const mask = (v: string) => (v.length <= 4 ? '••••' : `••••${v.slice(-4)}`)
@@ -72,6 +79,12 @@ export function createApp(deps: AppDeps) {
   /** env var → saved DB setting → '' */
   const resolve = async (key: string, envVal: string | undefined): Promise<string> =>
     envVal || (await deps.repo.getSetting(key)) || ''
+
+  /** Open registration lets uninvited users sign up and claim a personal mailbox. Off by default. */
+  const openRegEnabled = async (): Promise<boolean> => {
+    const v = (await resolve('OPEN_REGISTRATION', deps.env.openRegistration)).toLowerCase()
+    return v === 'on' || v === 'true' || v === '1'
+  }
 
   const userOf = (c: Context) => verifySession(getCookie(c, COOKIE), deps.sessionSecret)
 
@@ -111,6 +124,7 @@ export function createApp(deps: AppDeps) {
     const oauth = Boolean(googleClientId && googleClientSecret)
     const appName = (await resolve('APP_NAME', deps.env.appName)) || 'MailKite Mail'
     const logoUrl = await resolve('LOGO_URL', deps.env.logoUrl)
+    const openRegistration = await openRegEnabled()
     // googleClientId is public (the SPA builds the consent URL with it); the
     // secret never leaves the server.
     return c.json({
@@ -121,6 +135,7 @@ export function createApp(deps: AppDeps) {
       googleClientId: oauth ? googleClientId : '',
       appName,
       logoUrl,
+      openRegistration,
     })
   })
 
@@ -167,7 +182,9 @@ export function createApp(deps: AppDeps) {
     if (existing && existing.status === 'active') return c.json({ error: 'account exists — sign in' }, 409)
 
     const count = await deps.repo.countUsers()
-    if (!existing && count > 0) {
+    // Uninvited signups are allowed only when open registration is on (they then
+    // claim a personal mailbox after verifying); otherwise invite-only.
+    if (!existing && count > 0 && !(await openRegEnabled())) {
       return c.json({ error: 'not invited — ask your team admin to add you' }, 403)
     }
 
@@ -253,7 +270,7 @@ export function createApp(deps: AppDeps) {
       return c.json({ error: 'Google sign-in failed' }, 401)
     }
     const gEmail = identity.email.toLowerCase()
-    if (!(await deps.repo.getUserByEmail(gEmail)) && (await deps.repo.countUsers()) > 0) {
+    if (!(await deps.repo.getUserByEmail(gEmail)) && (await deps.repo.countUsers()) > 0 && !(await openRegEnabled())) {
       return c.json({ error: 'not invited — ask your team admin to add you' }, 403)
     }
     const u = await deps.repo.upsertGoogleUser({
@@ -498,6 +515,42 @@ export function createApp(deps: AppDeps) {
     const dflt = (await resolve('MAILKITE_FROM', deps.env.from)) || granted[0] || provisioned[0] || ''
     const identities = [...new Set([dflt, ...granted, ...provisioned].filter(Boolean))]
     return c.json({ identities, default: dflt })
+  })
+
+  // ---- Registration: claim a personal mailbox ------------------------------
+  app.get('/api/registration/status', requireAuth, async (c) => {
+    const actor = actorOf(c)
+    const open = await openRegEnabled()
+    const granted = actor.isAdmin ? ['*'] : await deps.repo.listIdentities(actor)
+    return c.json({
+      openRegistration: open,
+      hasMailbox: actor.isAdmin || granted.length > 0,
+      canClaim: open && !actor.isAdmin && granted.length === 0,
+    })
+  })
+
+  const validAddress = (a: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a)
+
+  app.get('/api/registration/check', requireAuth, async (c) => {
+    const address = (c.req.query('address') || '').trim().toLowerCase()
+    if (!validAddress(address)) return c.json({ available: false, reason: 'invalid' })
+    if (RESERVED_LOCALPARTS.has(address.split('@')[0])) return c.json({ available: false, reason: 'reserved' })
+    return c.json({ available: !(await deps.repo.getAddressByName(address)) })
+  })
+
+  app.post('/api/registration/claim', requireAuth, async (c) => {
+    const actor = actorOf(c)
+    if (!actor.isAdmin && !(await openRegEnabled())) return c.json({ error: 'open registration is off' }, 403)
+    const body = (await c.req.json().catch(() => null)) as { address?: string } | null
+    const address = body?.address?.trim().toLowerCase()
+    if (!address || !validAddress(address)) return c.json({ error: 'a valid address is required' }, 400)
+    if (RESERVED_LOCALPARTS.has(address.split('@')[0])) return c.json({ error: 'that address is reserved' }, 409)
+    if (await deps.repo.getAddressByName(address)) return c.json({ error: 'address already taken' }, 409)
+    const now = Date.now()
+    const a = { id: `adr_${crypto.randomUUID()}`, address, label: null, created_at: now }
+    await deps.repo.createAddress(a)
+    await deps.repo.grantAddressToUser(a.id, actor.userId, now)
+    return c.json({ address }, 201)
   })
 
   // Provisioned send-as addresses (team-wide, no ACL — any member manages them).

@@ -115,6 +115,38 @@ describe('delete account', () => {
   })
 })
 
+describe('open registration + claim', () => {
+  it('uninvited signup is gated by OPEN_REGISTRATION; a member can claim a free mailbox', async () => {
+    let sentText = ''
+    const { app, repo } = await makeApp(
+      { adminEmail: 'admin@x', adminPassword: 'pw', apiKey: 'mk', from: 'no@x' }, // open reg unset → off, savable
+      async (input) => { sentText = String(input.text ?? ''); return { id: 'o', status: 'queued' } },
+    )
+    // seed a real user so countUsers > 0 (env-admin isn't a row)
+    await repo.createUser({ id: 'usr_seed', email: 'seed@x.com', password_hash: '', role: 'admin', created_at: 0, status: 'active' })
+
+    // open registration OFF → uninvited signup rejected
+    expect((await post(app, '/api/admin/signup', { email: 'stranger@x.com', password: 'longenough' })).status).toBe(403)
+
+    // turn it ON (admin saves the setting), then signup is allowed
+    const adminCookie = cookieOf(await post(app, '/api/admin/login', { email: 'admin@x', password: 'pw' }))
+    await post(app, '/api/admin/config', { key: 'OPEN_REGISTRATION', value: 'on' }, adminCookie)
+    expect((await post(app, '/api/admin/signup', { email: 'stranger@x.com', password: 'longenough' })).status).toBe(201)
+    const code = sentText.match(/\b(\d{6})\b/)?.[1]
+    const verify = await post(app, '/api/admin/verify', { email: 'stranger@x.com', code })
+    const strangerCookie = cookieOf(verify)
+
+    // the new member has no mailbox yet → can claim; reserved/taken are rejected
+    const status = await json(await app.fetch(new Request('http://x/api/registration/status', { headers: { cookie: strangerCookie } })))
+    expect(status.canClaim).toBe(true)
+    expect((await post(app, '/api/registration/claim', { address: 'admin@x.com' }, strangerCookie)).status).toBe(409) // reserved
+    expect((await post(app, '/api/registration/claim', { address: 'me@x.com' }, strangerCookie)).status).toBe(201)
+    // claiming gives exactly that one mailbox
+    const id2 = await json(await app.fetch(new Request('http://x/api/identities', { headers: { cookie: strangerCookie } })))
+    expect(id2.identities).toContain('me@x.com')
+  })
+})
+
 describe('access management', () => {
   it('admin provisions addresses/teams/grants; the access view reflects them; gated', async () => {
     const { app } = await makeApp({ adminEmail: 'admin@x', adminPassword: 'pw' })

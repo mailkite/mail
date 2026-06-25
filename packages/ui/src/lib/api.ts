@@ -92,6 +92,7 @@ export interface AppConfig {
   googleClientId: string
   appName: string
   logoUrl: string
+  openRegistration: boolean
 }
 
 export const api = {
@@ -155,6 +156,13 @@ export const api = {
   getMessage: (id: string) => getJSON<{ message: MessageRow }>(`/api/messages/${id}`).then((r) => r.message),
 
   identities: () => getJSON<{ identities: string[]; default: string }>('/api/identities'),
+
+  // ---- registration / claim a personal mailbox -----------------------------
+  registrationStatus: () =>
+    getJSON<{ openRegistration: boolean; hasMailbox: boolean; canClaim: boolean }>('/api/registration/status'),
+  checkAddress: (address: string) =>
+    getJSON<{ available: boolean; reason?: string }>(`/api/registration/check?address=${encodeURIComponent(address)}`),
+  claimMailbox: (address: string) => postJSON<{ address: string }>('/api/registration/claim', { address }),
 
   // ---- provisioned send-as addresses ---------------------------------------
   senders: () => getJSON<{ senders: SenderAccount[] }>('/api/senders').then((r) => r.senders),

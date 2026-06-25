@@ -21,7 +21,7 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
-    api.config().then(setConfig).catch(() => setConfig({ sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '', appName: 'MailKite Mail', logoUrl: '' }))
+    api.config().then(setConfig).catch(() => setConfig({ sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '', appName: 'MailKite Mail', logoUrl: '', openRegistration: false }))
   }, [])
 
   const load = useCallback(() => {

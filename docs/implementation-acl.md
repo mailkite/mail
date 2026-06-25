@@ -20,7 +20,7 @@ in [`teams.md`](teams.md).
 | A1 — Enforcement core (scoped repo + lint + negatives) | ✅ |
 | A2 — Ingest anchor | ✅ |
 | A3 — Admin: addresses/teams/grants | ✅ |
-| A4 — Onboarding & open registration | ⬜ |
+| A4 — Onboarding & open registration | ✅ |
 | A5 — Scoped API + UI | ⬜ |
 | A6 — Team-admin tier *(optional)* | ⬜ |
 
