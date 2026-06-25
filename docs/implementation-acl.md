@@ -17,7 +17,7 @@ in [`teams.md`](teams.md).
 | Phase | Status |
 |---|---|
 | A0 — Schema + backfill | ✅ |
-| A1 — Enforcement core (scoped repo + lint + negatives) | 🚧 |
+| A1 — Enforcement core (scoped repo + lint + negatives) | ✅ |
 | A2 — Ingest anchor | ⬜ |
 | A3 — Admin: addresses/teams/grants | ⬜ |
 | A4 — Onboarding & open registration | ⬜ |

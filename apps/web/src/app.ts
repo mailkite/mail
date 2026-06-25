@@ -393,15 +393,21 @@ export function createApp(deps: AppDeps) {
     return c.json({ id: payload.id, stored }, stored ? 201 : 200)
   })
 
-  // ---- Mail API (auth required) --------------------------------------------
+  // ---- Mail API (auth required, ACL-scoped via the Actor) ------------------
+  // The Actor is built server-side from the session — the only input to scoping.
+  const actorOf = (c: Context<AppEnv>) => {
+    const u = c.get('user')
+    return { userId: u.uid, isAdmin: u.role === 'admin' }
+  }
+
   app.get('/api/messages', requireAuth, async (c) => {
     const folder = c.req.query('folder') as 'inbox' | 'starred' | 'archive' | undefined
     const q = c.req.query('q') || undefined
-    return c.json({ messages: await deps.repo.listMessages({ folder, q }) })
+    return c.json({ messages: await deps.repo.listMessages(actorOf(c), { folder, q }) })
   })
 
   app.get('/api/messages/:id', requireAuth, async (c) => {
-    const m = await deps.repo.getMessage(c.req.param('id')!)
+    const m = await deps.repo.getMessage(actorOf(c), c.req.param('id')!)
     return m ? c.json({ message: m }) : c.json({ error: 'not found' }, 404)
   })
 
@@ -410,18 +416,18 @@ export function createApp(deps: AppDeps) {
       | { unread?: boolean; starred?: boolean; archived?: boolean }
       | null
     if (!body) return c.json({ error: 'invalid body' }, 400)
-    await deps.repo.updateFlags(c.req.param('id')!, body)
-    const m = await deps.repo.getMessage(c.req.param('id')!)
+    await deps.repo.updateFlags(actorOf(c), c.req.param('id')!, body)
+    const m = await deps.repo.getMessage(actorOf(c), c.req.param('id')!)
     return m ? c.json({ message: m }) : c.json({ error: 'not found' }, 404)
   })
 
-  // Send-as identities: provisioned sender addresses + addresses received at +
-  // the configured default. The compose UI picks `from` from these.
+  // Send-as identities: provisioned sender addresses + the addresses the actor is
+  // granted + the configured default. The compose UI picks `from` from these.
   app.get('/api/identities', requireAuth, async (c) => {
     const provisioned = (await deps.repo.listSenderAccounts()).map((s) => s.address)
-    const received = await deps.repo.listIdentities()
-    const dflt = (await resolve('MAILKITE_FROM', deps.env.from)) || provisioned[0] || received[0] || ''
-    const identities = [...new Set([dflt, ...provisioned, ...received].filter(Boolean))]
+    const granted = await deps.repo.listIdentities(actorOf(c))
+    const dflt = (await resolve('MAILKITE_FROM', deps.env.from)) || granted[0] || provisioned[0] || ''
+    const identities = [...new Set([dflt, ...granted, ...provisioned].filter(Boolean))]
     return c.json({ identities, default: dflt })
   })
 

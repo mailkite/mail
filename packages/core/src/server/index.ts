@@ -9,4 +9,7 @@ export { hashPassword, verifyPassword, signSession, verifySession, hashToken } f
 export type { SessionPayload } from './auth'
 export { exchangeGoogleCode, decodeGoogleIdToken } from './google'
 export type { GoogleIdentity } from './google'
-export type { UserRow, AuthProvider, UserStatus, Role, SenderAccountRow } from '../types'
+export type {
+  UserRow, AuthProvider, UserStatus, Role, SenderAccountRow,
+  Actor, AddressRow, TeamRow, TeamMemberRow, AddressGrantRow,
+} from '../types'

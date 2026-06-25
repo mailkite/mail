@@ -4,6 +4,7 @@ import { SqliteDriver } from '../src/server/node'
 import type { WebhookPayload } from '../src/index'
 
 const blobs: BlobStore = { async put() {}, async get() { return null } }
+const ADMIN = { userId: 'sys', isAdmin: true }
 
 function payload(id: string, subject: string): WebhookPayload {
   return {
@@ -25,19 +26,19 @@ async function seed() {
 describe('organize & search', () => {
   it('toggles flags, filters by folder, and searches', async () => {
     const repo = await seed()
-    expect((await repo.listMessages()).length).toBe(2) // inbox
+    expect((await repo.listMessages(ADMIN)).length).toBe(2) // inbox
 
-    await repo.updateFlags('m1', { archived: true })
-    expect((await repo.listMessages()).length).toBe(1) // inbox hides archived
-    expect((await repo.listMessages({ folder: 'archive' })).map((m) => m.id)).toEqual(['m1'])
+    await repo.updateFlags(ADMIN, 'm1', { archived: true })
+    expect((await repo.listMessages(ADMIN)).length).toBe(1) // inbox hides archived
+    expect((await repo.listMessages(ADMIN, { folder: 'archive' })).map((m) => m.id)).toEqual(['m1'])
 
-    await repo.updateFlags('m2', { starred: true, unread: false })
-    expect((await repo.listMessages({ folder: 'starred' })).map((m) => m.id)).toEqual(['m2'])
+    await repo.updateFlags(ADMIN, 'm2', { starred: true, unread: false })
+    expect((await repo.listMessages(ADMIN, { folder: 'starred' })).map((m) => m.id)).toEqual(['m2'])
 
-    expect((await repo.listMessages({ q: 'welcome' })).map((m) => m.id)).toEqual(['m2'])
-    expect((await repo.listMessages({ folder: 'archive', q: 'invoice' })).map((m) => m.id)).toEqual(['m1'])
+    expect((await repo.listMessages(ADMIN, { q: 'welcome' })).map((m) => m.id)).toEqual(['m2'])
+    expect((await repo.listMessages(ADMIN, { folder: 'archive', q: 'invoice' })).map((m) => m.id)).toEqual(['m1'])
 
-    const m2 = await repo.getMessage('m2')
+    const m2 = await repo.getMessage(ADMIN, 'm2')
     expect(m2?.unread).toBe(0)
     expect(m2?.starred).toBe(1)
   })

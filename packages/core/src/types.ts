@@ -62,6 +62,37 @@ export interface SenderAccountRow {
   created_at: number
 }
 
+// ---- ACL (docs/acl.md) -----------------------------------------------------
+/** Request-scoped capability built server-side from the session/API key. The
+ *  ONLY input to access scoping — never from client input. */
+export interface Actor {
+  userId: string
+  isAdmin: boolean // the owner/admin relation → sees every address
+}
+
+export interface AddressRow {
+  id: string
+  address: string
+  label: string | null
+  created_at: number
+}
+export interface TeamRow {
+  id: string
+  name: string
+  created_at: number
+}
+export interface TeamMemberRow {
+  team_id: string
+  user_id: string
+  role: string
+}
+export interface AddressGrantRow {
+  address_id: string
+  user_id: string | null
+  team_id: string | null
+  created_at: number
+}
+
 export interface UserRow {
   id: string
   email: string

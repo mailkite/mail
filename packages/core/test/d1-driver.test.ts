@@ -64,7 +64,7 @@ describe('D1Driver — MailRepo parity with the Node provider', () => {
     expect((await repo.ingestWebhookMessage(payload, opts)).stored).toBe(true)
     expect((await repo.ingestWebhookMessage(payload, opts)).stored).toBe(false) // dedupe
 
-    const list = await repo.listMessages()
+    const list = await repo.listMessages({ userId: 'sys', isAdmin: true })
     expect(list.length).toBe(1)
     expect(list[0].thread_id).toBe('msg_1')
     expect(list[0].from_addr).toBe('sender@example.com')
