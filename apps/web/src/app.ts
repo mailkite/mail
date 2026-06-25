@@ -10,6 +10,8 @@ import {
   signSession,
   verifySession,
   hashToken,
+  exchangeGoogleCode,
+  decodeGoogleIdToken,
 } from '@mailkite/core/server'
 import type { SendInput, SendResult, SessionPayload } from '@mailkite/core/server'
 
@@ -20,6 +22,8 @@ export interface AppEnvConfig {
   from?: string
   adminEmail?: string
   adminPassword?: string
+  googleClientId?: string
+  googleClientSecret?: string
 }
 
 export interface AppDeps {
@@ -40,6 +44,8 @@ const CONFIG_ITEMS = [
   { key: 'MAILKITE_WEBHOOK_SECRET', secret: true, gates: 'ingest', env: (e: AppEnvConfig) => e.webhookSecret },
   { key: 'MAILKITE_API_BASE', secret: false, gates: null, env: (e: AppEnvConfig) => e.apiBase },
   { key: 'MAILKITE_FROM', secret: false, gates: null, env: (e: AppEnvConfig) => e.from },
+  { key: 'GOOGLE_CLIENT_ID', secret: false, gates: 'google sign-in', env: (e: AppEnvConfig) => e.googleClientId },
+  { key: 'GOOGLE_CLIENT_SECRET', secret: true, gates: 'google sign-in', env: (e: AppEnvConfig) => e.googleClientSecret },
 ] as const
 
 const CONFIG_KEYS = new Set<string>(CONFIG_ITEMS.map((i) => i.key))
@@ -94,7 +100,12 @@ export function createApp(deps: AppDeps) {
   app.get('/api/config', async (c) => {
     const sending = Boolean(await resolve('MAILKITE_API_KEY', deps.env.apiKey))
     const needsSetup = !deps.env.adminPassword && (await deps.repo.countUsers()) === 0
-    return c.json({ sending, push: false, needsSetup })
+    const googleClientId = await resolve('GOOGLE_CLIENT_ID', deps.env.googleClientId)
+    const googleClientSecret = await resolve('GOOGLE_CLIENT_SECRET', deps.env.googleClientSecret)
+    const oauth = Boolean(googleClientId && googleClientSecret)
+    // googleClientId is public (the SPA builds the consent URL with it); the
+    // secret never leaves the server.
+    return c.json({ sending, push: false, needsSetup, oauth, googleClientId: oauth ? googleClientId : '' })
   })
 
   // ---- Auth -----------------------------------------------------------------
@@ -201,6 +212,31 @@ export function createApp(deps: AppDeps) {
     if (u.status === 'pending') {
       return c.json({ error: 'verify your email to finish signing up', code: 'unverified', email: u.email }, 403)
     }
+    await startSession(c, { uid: u.id, role: u.role, email: u.email })
+    return c.json({ email: u.email, role: u.role })
+  })
+
+  // Google OAuth: the SPA gets a one-time code at <origin>/auth/google/callback
+  // and POSTs it here. We exchange it (confidential client), verify the ID
+  // token's aud, then upsert the user + session. First user becomes admin.
+  app.post('/api/auth/google', async (c) => {
+    const clientId = await resolve('GOOGLE_CLIENT_ID', deps.env.googleClientId)
+    const clientSecret = await resolve('GOOGLE_CLIENT_SECRET', deps.env.googleClientSecret)
+    if (!clientId || !clientSecret) return c.json({ error: 'Google sign-in is not configured' }, 503)
+    const body = (await c.req.json().catch(() => null)) as { code?: string; redirectUri?: string } | null
+    if (!body?.code || !body.redirectUri) return c.json({ error: 'code and redirectUri required' }, 400)
+
+    const idToken = await exchangeGoogleCode({ code: body.code, redirectUri: body.redirectUri, clientId, clientSecret })
+    const identity = idToken ? decodeGoogleIdToken(idToken) : null
+    if (!identity || identity.aud !== clientId || !identity.email) {
+      return c.json({ error: 'Google sign-in failed' }, 401)
+    }
+    const u = await deps.repo.upsertGoogleUser({
+      email: identity.email.toLowerCase(),
+      sub: identity.sub,
+      name: identity.name,
+      picture: identity.picture,
+    })
     await startSession(c, { uid: u.id, role: u.role, email: u.email })
     return c.json({ email: u.email, role: u.role })
   })

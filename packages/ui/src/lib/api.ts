@@ -49,6 +49,8 @@ export interface AppConfig {
   sending: boolean
   push: boolean
   needsSetup: boolean
+  oauth: boolean
+  googleClientId: string
 }
 
 export const api = {
@@ -68,6 +70,8 @@ export const api = {
   verify: (email: string, code: string) =>
     postJSON<SessionUser>('/api/admin/verify', { email, code }),
   resend: (email: string) => postJSON<{ ok: boolean }>('/api/admin/resend', { email }),
+  loginWithGoogle: (code: string, redirectUri: string) =>
+    postJSON<SessionUser>('/api/auth/google', { code, redirectUri }),
   logout: () =>
     fetch(`${base}/api/admin/logout`, { method: 'POST', credentials: 'include' }).then(() => {}),
 

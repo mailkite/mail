@@ -1,4 +1,4 @@
-import type { WebhookPayload, MessageRow, MessageFlags, ListOptions, UserRow, UserStatus } from '../types'
+import type { WebhookPayload, MessageRow, MessageFlags, ListOptions, UserRow, UserStatus, Role } from '../types'
 import { mapWebhookToMessage } from '../webhook/map'
 import type { SqlDriver, BlobStore } from './ports'
 import { SCHEMA_SQL } from './schema'
@@ -159,6 +159,34 @@ export class MailRepo {
 
   async setUserPassword(email: string, passwordHash: string): Promise<void> {
     await this.sql.run('UPDATE users SET password_hash = ? WHERE email = ?', [passwordHash, email])
+  }
+
+  /** Create or activate a Google-authenticated user (no password). Returns the row. */
+  async upsertGoogleUser(u: { email: string; sub: string; name: string | null; picture: string | null }): Promise<UserRow> {
+    const existing = await this.getUserByEmail(u.email)
+    if (existing) {
+      await this.sql.run(
+        `UPDATE users SET provider = 'google', google_sub = ?, name = COALESCE(name, ?),
+         avatar_url = COALESCE(avatar_url, ?), status = 'active' WHERE email = ?`,
+        [u.sub, u.name, u.picture, u.email],
+      )
+      return (await this.getUserByEmail(u.email))!
+    }
+    const role: Role = (await this.countUsers()) === 0 ? 'admin' : 'user'
+    const row: UserRow = {
+      id: `usr_${crypto.randomUUID()}`,
+      email: u.email,
+      password_hash: '',
+      role,
+      created_at: Date.now(),
+      name: u.name,
+      provider: 'google',
+      google_sub: u.sub,
+      status: 'active',
+      avatar_url: u.picture,
+    }
+    await this.createUser(row)
+    return row
   }
 
   // ---- Email verification codes (OTP) --------------------------------------

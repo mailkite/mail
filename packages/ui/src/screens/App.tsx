@@ -28,31 +28,16 @@ function Splash({ error, onRetry }: { error?: string | null; onRetry?: () => voi
  * session actually stuck (api.me) so a dropped cookie surfaces as a clear error
  * instead of silently bouncing back to the login form.
  */
+const FALLBACK_CONFIG: AppConfig = { sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '' }
+const GOOGLE_CALLBACK = '/auth/google/callback'
+
 export function App() {
   const [config, setConfig] = useState<AppConfig | null>(null)
   const [user, setUser] = useState<SessionUser | null>(null)
   const [ready, setReady] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
-    setLoadError(null)
-    try {
-      const [cfg, me] = await Promise.all([api.config(), api.me()])
-      setConfig(cfg)
-      setUser(me)
-    } catch (e) {
-      setConfig((c) => c ?? { sending: false, push: false, needsSetup: false })
-      setLoadError(e instanceof Error ? e.message : 'Could not reach the server.')
-    } finally {
-      setReady(true)
-    }
-  }, [])
-
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-
-  // Run after a successful login/setup: confirm the session cookie is honored.
+  // Run after a successful login/signup/oauth: confirm the session cookie is honored.
   const confirmSession = useCallback(async (fallback: SessionUser) => {
     const me = await api.me().catch(() => null)
     if (!me) {
@@ -65,11 +50,47 @@ export function App() {
     api.config().then(setConfig).catch(() => {})
   }, [])
 
+  const refresh = useCallback(async () => {
+    setLoadError(null)
+    try {
+      // Returning from Google: exchange the code, then clean the URL.
+      const url = new URL(window.location.href)
+      if (url.pathname === GOOGLE_CALLBACK && url.searchParams.get('code')) {
+        const code = url.searchParams.get('code') as string
+        const redirectUri = `${url.origin}${GOOGLE_CALLBACK}`
+        const u = await api.loginWithGoogle(code, redirectUri)
+        window.history.replaceState(null, '', '/')
+        setConfig(await api.config().catch(() => FALLBACK_CONFIG))
+        await confirmSession(u)
+        return
+      }
+      const [cfg, me] = await Promise.all([api.config(), api.me()])
+      setConfig(cfg)
+      setUser(me)
+    } catch (e) {
+      setConfig((c) => c ?? FALLBACK_CONFIG)
+      setLoadError(e instanceof Error ? e.message : 'Could not reach the server.')
+    } finally {
+      setReady(true)
+    }
+  }, [confirmSession])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
   if (!ready || !config) return <Splash error={loadError} onRetry={refresh} />
 
   // No users yet → first signup (that user becomes admin); otherwise sign in.
   if (!user) {
-    return <Auth initialMode={config.needsSetup ? 'signup' : 'login'} onAuthed={confirmSession} />
+    return (
+      <Auth
+        initialMode={config.needsSetup ? 'signup' : 'login'}
+        oauth={config.oauth}
+        googleClientId={config.googleClientId}
+        onAuthed={confirmSession}
+      />
+    )
   }
 
   return (

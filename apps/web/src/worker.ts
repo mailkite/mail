@@ -15,6 +15,8 @@ export interface Env {
   MAILKITE_FROM?: string
   ADMIN_EMAIL?: string
   ADMIN_PASSWORD?: string
+  GOOGLE_CLIENT_ID?: string
+  GOOGLE_CLIENT_SECRET?: string
 }
 
 // Cached per isolate. Prefer setting SESSION_SECRET as a wrangler secret in
@@ -54,6 +56,8 @@ export default {
         from: env.MAILKITE_FROM,
         adminEmail: env.ADMIN_EMAIL,
         adminPassword: env.ADMIN_PASSWORD,
+        googleClientId: env.GOOGLE_CLIENT_ID,
+        googleClientSecret: env.GOOGLE_CLIENT_SECRET,
       },
     })
     return app.fetch(request)

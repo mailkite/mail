@@ -14,11 +14,28 @@ const UNVERIFIED = /verify your email/i
  *   verify → enter the 6-digit code → session
  * `onAuthed` confirms the session stuck (App.confirmSession).
  */
+const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
+
+function startGoogle(clientId: string) {
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: `${window.location.origin}/auth/google/callback`,
+    response_type: 'code',
+    scope: 'openid email profile',
+    prompt: 'select_account',
+  })
+  window.location.href = `${GOOGLE_AUTH_URL}?${params.toString()}`
+}
+
 export function Auth({
   initialMode = 'login',
+  oauth = false,
+  googleClientId = '',
   onAuthed,
 }: {
   initialMode?: Mode
+  oauth?: boolean
+  googleClientId?: string
   onAuthed: (u: SessionUser) => Promise<void>
 }) {
   const [mode, setMode] = useState<Mode>(initialMode)
@@ -80,6 +97,29 @@ export function Auth({
 
   return (
     <AuthScreen title={title} subtitle={subtitle}>
+      {mode !== 'verify' && (
+        <div className="mb-4">
+          {oauth && googleClientId ? (
+            <>
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => startGoogle(googleClientId)}
+                className="w-full justify-center border border-[var(--color-border)]"
+              >
+                Continue with Google
+              </Button>
+              <div className="my-3 flex items-center gap-2 text-xs text-[var(--color-muted)]">
+                <span className="h-px flex-1 bg-[var(--color-border)]" /> or <span className="h-px flex-1 bg-[var(--color-border)]" />
+              </div>
+            </>
+          ) : (
+            <p className="mb-1 text-xs text-[var(--color-muted)]">
+              Google sign-in isn’t set up — an admin can enable it in Settings.
+            </p>
+          )}
+        </div>
+      )}
       <form onSubmit={submit} className="space-y-3">
         {mode !== 'verify' && (
           <>
