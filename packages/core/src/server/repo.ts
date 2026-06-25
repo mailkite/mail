@@ -194,6 +194,10 @@ export class MailRepo {
     await this.sql.run('INSERT OR IGNORE INTO addresses (id, address, label, created_at) VALUES (?, ?, ?, ?)',
       [a.id, a.address, a.label, a.created_at])
   }
+  async deleteAddress(id: string): Promise<void> {
+    await this.sql.run('DELETE FROM address_grants WHERE address_id = ?', [id])
+    await this.sql.run('DELETE FROM addresses WHERE id = ?', [id])
+  }
 
   async listTeams(): Promise<TeamRow[]> {
     return this.sql.all<TeamRow>('SELECT * FROM teams ORDER BY name')
@@ -201,11 +205,22 @@ export class MailRepo {
   async createTeam(t: TeamRow): Promise<void> {
     await this.sql.run('INSERT INTO teams (id, name, created_at) VALUES (?, ?, ?)', [t.id, t.name, t.created_at])
   }
+  async deleteTeam(id: string): Promise<void> {
+    await this.sql.run('DELETE FROM team_members WHERE team_id = ?', [id])
+    await this.sql.run('DELETE FROM address_grants WHERE team_id = ?', [id])
+    await this.sql.run('DELETE FROM teams WHERE id = ?', [id])
+  }
   async addTeamMember(teamId: string, userId: string, role = 'member'): Promise<void> {
     await this.sql.run('INSERT OR IGNORE INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)', [teamId, userId, role])
   }
   async removeTeamMember(teamId: string, userId: string): Promise<void> {
     await this.sql.run('DELETE FROM team_members WHERE team_id = ? AND user_id = ?', [teamId, userId])
+  }
+  async listTeamMembers(): Promise<{ team_id: string; user_id: string; role: string }[]> {
+    return this.sql.all('SELECT team_id, user_id, role FROM team_members')
+  }
+  async listGrants(): Promise<{ address_id: string; user_id: string | null; team_id: string | null }[]> {
+    return this.sql.all('SELECT address_id, user_id, team_id FROM address_grants')
   }
 
   async grantAddressToUser(addressId: string, userId: string, now: number): Promise<void> {

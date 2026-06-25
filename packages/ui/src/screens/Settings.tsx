@@ -3,6 +3,7 @@ import { Check, Trash2 } from 'lucide-react'
 import { api, type AdminConfigItem, type TeamUser, type SenderAccount } from '../lib/api'
 import { Button } from '../components/Button'
 import { Logo } from '../components/Logo'
+import { AccessSection } from './AccessSection'
 
 const BRANDING_KEYS = ['APP_NAME', 'LOGO_URL']
 const inputCls =
@@ -341,6 +342,8 @@ export function Settings() {
     <div className="h-full overflow-auto p-6">
       <div className="mx-auto max-w-2xl space-y-4">
         <h1 className="text-2xl font-semibold">Settings</h1>
+
+        <AccessSection />
 
         <BrandingSection />
 

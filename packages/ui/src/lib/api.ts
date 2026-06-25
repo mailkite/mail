@@ -23,6 +23,26 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T
 }
 
+async function del(path: string, body?: unknown): Promise<void> {
+  const res = await fetch(`${base}${path}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    ...(body ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}),
+  })
+  if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'request failed')
+}
+
+export interface AccessAddress { id: string; address: string; label: string | null; created_at: number }
+export interface AccessTeam { id: string; name: string; created_at: number }
+export interface AccessView {
+  addresses: AccessAddress[]
+  teams: AccessTeam[]
+  members: { team_id: string; user_id: string; role: string }[]
+  grants: { address_id: string; user_id: string | null; team_id: string | null }[]
+  users: { id: string; email: string; role: 'admin' | 'user' }[]
+}
+export type GrantSubject = { userId: string } | { teamId: string }
+
 export interface SessionUser {
   email: string
   role: 'admin' | 'user'
@@ -110,6 +130,19 @@ export const api = {
     const res = await fetch(`${base}/api/admin/users/${id}`, { method: 'DELETE', credentials: 'include' })
     if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? 'remove failed')
   },
+
+  // ---- access: addresses, teams, grants (admin) ----------------------------
+  access: () => getJSON<AccessView>('/api/admin/access'),
+  provisionAddress: (address: string, label?: string) =>
+    postJSON<AccessAddress>('/api/admin/addresses', { address, label }),
+  removeAddress: (id: string) => del(`/api/admin/addresses/${id}`),
+  createAccessTeam: (name: string) => postJSON<AccessTeam>('/api/admin/teams', { name }),
+  removeTeam: (id: string) => del(`/api/admin/teams/${id}`),
+  addTeamMember: (teamId: string, userId: string) =>
+    postJSON<{ ok: boolean }>(`/api/admin/teams/${teamId}/members`, { userId }),
+  removeTeamMember: (teamId: string, userId: string) => del(`/api/admin/teams/${teamId}/members/${userId}`),
+  grant: (addressId: string, who: GrantSubject) => postJSON<{ ok: boolean }>('/api/admin/grants', { addressId, ...who }),
+  revoke: (addressId: string, who: GrantSubject) => del('/api/admin/grants', { addressId, ...who }),
 
   listMessages: (opts: { folder?: Folder; q?: string } = {}) => {
     const p = new URLSearchParams()

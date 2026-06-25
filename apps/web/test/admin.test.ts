@@ -115,6 +115,29 @@ describe('delete account', () => {
   })
 })
 
+describe('access management', () => {
+  it('admin provisions addresses/teams/grants; the access view reflects them; gated', async () => {
+    const { app } = await makeApp({ adminEmail: 'admin@x', adminPassword: 'pw' })
+    const cookie = cookieOf(await post(app, '/api/admin/login', { email: 'admin@x', password: 'pw' }))
+
+    const adr = await post(app, '/api/admin/addresses', { address: 'Support@x.com', label: 'Support' }, cookie)
+    expect(adr.status).toBe(201)
+    const addressId = (await json(adr)).id as string
+    const team = await post(app, '/api/admin/teams', { name: 'Support' }, cookie)
+    const teamId = (await json(team)).id as string
+    expect((await post(app, `/api/admin/teams/${teamId}/members`, { userId: 'u1' }, cookie)).status).toBe(201)
+    expect((await post(app, '/api/admin/grants', { addressId, teamId }, cookie)).status).toBe(201)
+
+    const access = await json(await app.fetch(new Request('http://x/api/admin/access', { headers: { cookie } })))
+    expect((access.addresses as unknown[]).length).toBe(1)
+    expect((access.grants as unknown[]).length).toBe(1)
+    expect((access.members as unknown[]).length).toBe(1)
+
+    // unauthenticated is blocked
+    expect((await app.fetch(new Request('http://x/api/admin/access'))).status).toBe(401)
+  })
+})
+
 describe('admin config', () => {
   it('is role-gated; env-first with a saved fallback; gates sending', async () => {
     const { app } = await makeApp({ adminEmail: 'admin@x', adminPassword: 'pw' }) // no apiKey in env

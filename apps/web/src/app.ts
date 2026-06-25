@@ -343,6 +343,72 @@ export function createApp(deps: AppDeps) {
     return c.json({ ok: true })
   })
 
+  // ---- Access: addresses, teams, grants (admin only) -----------------------
+  app.get('/api/admin/access', requireAdmin, async (c) => {
+    const [addresses, teams, members, grants, users] = await Promise.all([
+      deps.repo.listAddresses(),
+      deps.repo.listTeams(),
+      deps.repo.listTeamMembers(),
+      deps.repo.listGrants(),
+      deps.repo.listUsers(),
+    ])
+    return c.json({
+      addresses, teams, members, grants,
+      users: users.map((u) => ({ id: u.id, email: u.email, role: u.role })),
+    })
+  })
+
+  app.post('/api/admin/addresses', requireAdmin, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { address?: string; label?: string } | null
+    const address = body?.address?.trim().toLowerCase()
+    if (!address || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address)) return c.json({ error: 'a valid address is required' }, 400)
+    if (await deps.repo.getAddressByName(address)) return c.json({ error: 'already provisioned' }, 409)
+    const a = { id: `adr_${crypto.randomUUID()}`, address, label: body?.label?.trim() || null, created_at: Date.now() }
+    await deps.repo.createAddress(a)
+    return c.json(a, 201)
+  })
+  app.delete('/api/admin/addresses/:id', requireAdmin, async (c) => {
+    await deps.repo.deleteAddress(c.req.param('id')!)
+    return c.json({ ok: true })
+  })
+
+  app.post('/api/admin/teams', requireAdmin, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { name?: string } | null
+    if (!body?.name?.trim()) return c.json({ error: 'name required' }, 400)
+    const t = { id: `tm_${crypto.randomUUID()}`, name: body.name.trim(), created_at: Date.now() }
+    await deps.repo.createTeam(t)
+    return c.json(t, 201)
+  })
+  app.delete('/api/admin/teams/:id', requireAdmin, async (c) => {
+    await deps.repo.deleteTeam(c.req.param('id')!)
+    return c.json({ ok: true })
+  })
+  app.post('/api/admin/teams/:id/members', requireAdmin, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { userId?: string } | null
+    if (!body?.userId) return c.json({ error: 'userId required' }, 400)
+    await deps.repo.addTeamMember(c.req.param('id')!, body.userId)
+    return c.json({ ok: true }, 201)
+  })
+  app.delete('/api/admin/teams/:id/members/:userId', requireAdmin, async (c) => {
+    await deps.repo.removeTeamMember(c.req.param('id')!, c.req.param('userId')!)
+    return c.json({ ok: true })
+  })
+
+  app.post('/api/admin/grants', requireAdmin, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { addressId?: string; userId?: string; teamId?: string } | null
+    if (!body?.addressId || (!body.userId && !body.teamId)) return c.json({ error: 'addressId and a userId or teamId required' }, 400)
+    if (body.userId) await deps.repo.grantAddressToUser(body.addressId, body.userId, Date.now())
+    else await deps.repo.grantAddressToTeam(body.addressId, body.teamId!, Date.now())
+    return c.json({ ok: true }, 201)
+  })
+  app.delete('/api/admin/grants', requireAdmin, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { addressId?: string; userId?: string; teamId?: string } | null
+    if (!body?.addressId) return c.json({ error: 'addressId required' }, 400)
+    if (body.userId) await deps.repo.revokeUserGrant(body.addressId, body.userId)
+    if (body.teamId) await deps.repo.revokeTeamGrant(body.addressId, body.teamId)
+    return c.json({ ok: true })
+  })
+
   // ---- Admin config (admin only) -------------------------------------------
   app.get('/api/admin/config', requireAdmin, async (c) => {
     const items = []
