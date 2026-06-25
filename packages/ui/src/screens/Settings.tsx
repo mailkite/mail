@@ -1,7 +1,85 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Check, Trash2 } from 'lucide-react'
-import { api, type AdminConfigItem, type TeamUser } from '../lib/api'
+import { api, type AdminConfigItem, type TeamUser, type SenderAccount } from '../lib/api'
 import { Button } from '../components/Button'
+
+function SendersSection() {
+  const [senders, setSenders] = useState<SenderAccount[] | null>(null)
+  const [address, setAddress] = useState('')
+  const [label, setLabel] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = async () => {
+    try { setSenders(await api.senders()) } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load senders') }
+  }
+  useEffect(() => { void load() }, [])
+
+  async function add(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true); setError(null)
+    try {
+      await api.createSender(address.trim(), label.trim() || undefined)
+      setAddress(''); setLabel('')
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not add address')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove(s: SenderAccount) {
+    try { await api.removeSender(s.id); await load() } catch (e) { setError(e instanceof Error ? e.message : 'Remove failed') }
+  }
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-lg font-semibold">Sender addresses</h2>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">
+          Provision addresses on your domain to send as — <code>support@</code>, <code>hello@</code>, or
+          per-person. Anyone on the team can send from any of them.
+        </p>
+      </div>
+
+      <form onSubmit={add} className="flex gap-2">
+        <input
+          type="email"
+          required
+          placeholder="support@yourdomain.com"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          className="flex-[2] rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
+        />
+        <input
+          placeholder="Label (optional)"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          className="flex-1 rounded-md border border-[var(--color-border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
+        />
+        <Button type="submit" disabled={busy || !address.trim()}>{busy ? 'Adding…' : 'Add'}</Button>
+      </form>
+      {error && <p className="text-sm text-red-400">{error}</p>}
+
+      <div className="rounded-lg border border-[var(--color-border)] divide-y divide-[var(--color-border)]">
+        {!senders && <p className="p-3 text-sm text-[var(--color-muted)]">Loading…</p>}
+        {senders?.length === 0 && <p className="p-3 text-sm text-[var(--color-muted)]">No sender addresses yet.</p>}
+        {senders?.map((s) => (
+          <div key={s.id} className="flex items-center gap-3 p-3 text-sm">
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium">{s.address}</div>
+              {s.label && <div className="text-xs text-[var(--color-muted)]">{s.label}</div>}
+            </div>
+            <button onClick={() => remove(s)} title="Remove" className="text-[var(--color-muted)] hover:text-red-400">
+              <Trash2 size={15} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
 
 const STATUS_BADGE: Record<TeamUser['status'], [string, string]> = {
   active: ['Active', 'text-emerald-300 bg-emerald-500/10'],
@@ -200,6 +278,8 @@ export function Settings() {
     <div className="h-full overflow-auto p-6">
       <div className="mx-auto max-w-2xl space-y-4">
         <h1 className="text-2xl font-semibold">Settings</h1>
+
+        <SendersSection />
 
         <TeamSection />
 

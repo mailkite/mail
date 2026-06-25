@@ -85,6 +85,26 @@ describe('POST /api/send', () => {
   })
 })
 
+describe('sender provisioning', () => {
+  it('provisions addresses (no ACL), rejects bad input, and merges into identities', async () => {
+    const app = await makeApp()
+    const cookie = await authCookie(app)
+
+    expect((await app.fetch(new Request('http://x/api/senders', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ address: 'nope' }),
+    }))).status).toBe(400)
+
+    const made = await app.fetch(new Request('http://x/api/senders', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ address: 'Support@mailn.app', label: 'Support' }),
+    }))
+    expect(made.status).toBe(201)
+
+    const ids = (await (await app.fetch(new Request('http://x/api/identities', { headers: { cookie } }))).json()) as { identities: string[] }
+    expect(ids.identities).toContain('support@mailn.app')
+  })
+})
+
 describe('GET /api/identities', () => {
   it('lists addresses received at (after an inbound webhook) + the default', async () => {
     const app = await makeApp()

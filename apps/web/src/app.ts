@@ -377,13 +377,40 @@ export function createApp(deps: AppDeps) {
     return m ? c.json({ message: m }) : c.json({ error: 'not found' }, 404)
   })
 
-  // Send-as identities: addresses this mailbox has received at, plus the
-  // configured default. The compose UI picks `from` from these.
+  // Send-as identities: provisioned sender addresses + addresses received at +
+  // the configured default. The compose UI picks `from` from these.
   app.get('/api/identities', requireAuth, async (c) => {
+    const provisioned = (await deps.repo.listSenderAccounts()).map((s) => s.address)
     const received = await deps.repo.listIdentities()
-    const dflt = (await resolve('MAILKITE_FROM', deps.env.from)) || received[0] || ''
-    const identities = [...new Set([dflt, ...received].filter(Boolean))]
+    const dflt = (await resolve('MAILKITE_FROM', deps.env.from)) || provisioned[0] || received[0] || ''
+    const identities = [...new Set([dflt, ...provisioned, ...received].filter(Boolean))]
     return c.json({ identities, default: dflt })
+  })
+
+  // Provisioned send-as addresses (team-wide, no ACL — any member manages them).
+  app.get('/api/senders', requireAuth, async (c) => {
+    return c.json({ senders: await deps.repo.listSenderAccounts() })
+  })
+
+  app.post('/api/senders', requireAuth, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { address?: string; label?: string } | null
+    const address = body?.address?.trim().toLowerCase()
+    if (!address || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address)) return c.json({ error: 'a valid address is required' }, 400)
+    if (await deps.repo.getSenderByAddress(address)) return c.json({ error: 'already added' }, 409)
+    const sender = {
+      id: `snd_${crypto.randomUUID()}`,
+      address,
+      label: body?.label?.trim() || null,
+      created_by: c.get('user').email,
+      created_at: Date.now(),
+    }
+    await deps.repo.createSenderAccount(sender)
+    return c.json(sender, 201)
+  })
+
+  app.delete('/api/senders/:id', requireAuth, async (c) => {
+    await deps.repo.deleteSenderAccount(c.req.param('id')!)
+    return c.json({ ok: true })
   })
 
   app.post('/api/send', requireAuth, async (c) => {

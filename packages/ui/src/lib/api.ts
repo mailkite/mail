@@ -28,6 +28,14 @@ export interface SessionUser {
   role: 'admin' | 'user'
 }
 
+export interface SenderAccount {
+  id: string
+  address: string
+  label: string | null
+  created_by: string | null
+  created_at: number
+}
+
 export interface TeamUser {
   id: string
   email: string
@@ -109,6 +117,15 @@ export const api = {
   getMessage: (id: string) => getJSON<{ message: MessageRow }>(`/api/messages/${id}`).then((r) => r.message),
 
   identities: () => getJSON<{ identities: string[]; default: string }>('/api/identities'),
+
+  // ---- provisioned send-as addresses ---------------------------------------
+  senders: () => getJSON<{ senders: SenderAccount[] }>('/api/senders').then((r) => r.senders),
+  createSender: (address: string, label?: string) =>
+    postJSON<SenderAccount>('/api/senders', { address, label }),
+  removeSender: async (id: string): Promise<void> => {
+    const res = await fetch(`${base}/api/senders/${id}`, { method: 'DELETE', credentials: 'include' })
+    if (!res.ok) throw new Error('remove failed')
+  },
 
   updateFlags: async (id: string, flags: MessageFlags): Promise<MessageRow> => {
     const res = await fetch(`${base}/api/messages/${id}`, {

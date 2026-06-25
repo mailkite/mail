@@ -1,4 +1,4 @@
-import type { WebhookPayload, MessageRow, MessageFlags, ListOptions, UserRow, UserStatus, Role } from '../types'
+import type { WebhookPayload, MessageRow, MessageFlags, ListOptions, UserRow, UserStatus, Role, SenderAccountRow } from '../types'
 import { mapWebhookToMessage } from '../webhook/map'
 import type { SqlDriver, BlobStore } from './ports'
 import { SCHEMA_SQL } from './schema'
@@ -89,6 +89,23 @@ export class MailRepo {
 
   async getMessage(id: string): Promise<MessageRow | undefined> {
     return this.sql.get<MessageRow>('SELECT * FROM messages WHERE id = ?', [id])
+  }
+
+  // ---- Provisioned send-as addresses (team-wide, no ACL) -------------------
+  async listSenderAccounts(): Promise<SenderAccountRow[]> {
+    return this.sql.all<SenderAccountRow>('SELECT * FROM sender_accounts ORDER BY created_at ASC')
+  }
+  async getSenderByAddress(address: string): Promise<SenderAccountRow | undefined> {
+    return this.sql.get<SenderAccountRow>('SELECT * FROM sender_accounts WHERE address = ?', [address])
+  }
+  async createSenderAccount(s: SenderAccountRow): Promise<void> {
+    await this.sql.run(
+      'INSERT INTO sender_accounts (id, address, label, created_by, created_at) VALUES (?, ?, ?, ?, ?)',
+      [s.id, s.address, s.label, s.created_by, s.created_at],
+    )
+  }
+  async deleteSenderAccount(id: string): Promise<void> {
+    await this.sql.run('DELETE FROM sender_accounts WHERE id = ?', [id])
   }
 
   /** Distinct addresses this mailbox has received at — the natural "send-as"

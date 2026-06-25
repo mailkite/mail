@@ -54,6 +54,14 @@ export type Role = 'admin' | 'user'
 export type AuthProvider = 'password' | 'google'
 export type UserStatus = 'active' | 'pending' | 'invited'
 
+export interface SenderAccountRow {
+  id: string
+  address: string
+  label: string | null
+  created_by: string | null
+  created_at: number
+}
+
 export interface UserRow {
   id: string
   email: string
