@@ -28,10 +28,11 @@ in [`teams.md`](teams.md).
 | **A1** | Enforcement core | `Actor`, `scopePredicate`, **scoped `MailRepo`**, the lint, the contract test + negative-test matrix | A0 |
 | **A2** | Ingest anchor | webhook assigns `address_id` (auto-create addresses) | A0 |
 | **A3** | Admin: addresses/teams/grants | owner provisions addresses, creates teams, grants to teams/users | A1 |
-| **A4** | Scoped API + UI | every `/api/*` mail route is Actor-scoped; UI shows only the actor's addresses; compose from granted | A1–A3 |
-| **A5** | Team-admin tier *(optional)* | `team_members.role='admin'` manages own team's membership | A3 |
+| **A4** | Onboarding & open registration | self-serve register → first-admin / invited / claim-personal / invite-only; the `OPEN_REGISTRATION` toggle | A0, A1 |
+| **A5** | Scoped API + UI | every `/api/*` mail route is Actor-scoped; UI shows only the actor's addresses; compose from granted | A1–A4 |
+| **A6** | Team-admin tier *(optional)* | `team_members.role='admin'` manages own team's membership | A3 |
 
-Critical path: **A0 → A1** (the floor), then A2/A3/A4 in parallel, A5 last.
+Critical path: **A0 → A1** (the floor), then A2/A3/A4 in parallel, A5 after, A6 last.
 
 ## Phase detail
 
@@ -67,7 +68,23 @@ Critical path: **A0 → A1** (the floor), then A2/A3/A4 in parallel, A5 last.
 - **Exit:** owner can grant `support@` to the *Support* team and `alice@` to one user; revocation
   removes access immediately (the predicate reads grants live).
 
-### A4 — Scoped API + UI
+### A4 — Onboarding & open registration
+Self-serve registration (Google OAuth, or email + password + code) branches on state — replacing the
+team app's flat "uninvited → 403" gate ([`acl.md`](acl.md) §9, [`audience.md`](audience.md) Onboarding):
+- **No users yet** → first user becomes **admin** (unchanged).
+- **Email was invited** → activate as a member with the invite's grants (unchanged).
+- **Not invited + `OPEN_REGISTRATION` on + address free** → **claim a personal mailbox**: the
+  registrant picks an available `you@domain`; create the `addresses` row + a direct
+  `address_grants(address ← user)`. (Availability check = no existing `addresses` row; reserve common
+  system localparts like `admin@`, `postmaster@`.)
+- **Not invited + `OPEN_REGISTRATION` off** → reject ("invite-only — ask the domain owner").
+- Add the `OPEN_REGISTRATION` admin toggle (Settings) + `/api/registration/check?address=` availability
+  endpoint for the claim UI.
+- **Exit:** with open registration on, a stranger registers, claims a free address, and sees **only**
+  that mailbox; with it off, an uninvited registration is refused; first-user-admin and invite paths
+  still work.
+
+### A5 — Scoped API + UI
 - Every mail route (`/api/messages`, `/api/messages/:id`, flags, search, `/api/identities`,
   `/api/send`) passes the `Actor`; the repo scopes. Compose "From" offers only **granted** addresses.
 - UI: a member sees only their addresses/threads; counts and search respect scope; no cross-scope
@@ -75,7 +92,7 @@ Critical path: **A0 → A1** (the floor), then A2/A3/A4 in parallel, A5 last.
 - **Exit:** logged in as a scoped member, the inbox, search, counts, and send are limited to granted
   addresses — verified against the A1 negatives end-to-end.
 
-### A5 — Team-admin tier *(optional)*
+### A6 — Team-admin tier *(optional)*
 - `team_members.role='admin'` may add/remove members of **their** team only (not create teams or
   touch other teams). A scoped slice of the admin surface.
 - **Exit:** a team-admin manages their team; cannot widen their own grants or reach other teams.

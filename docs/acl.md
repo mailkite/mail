@@ -52,9 +52,14 @@ domain-local by construction. (Multi-domain is a platform concern, not V1.)
 
 | Principal | Source | Authority |
 |---|---|---|
-| **Owner / admin** | `users.role = 'admin'` | Every address (the modeled `admin` relation — not a code bypass). |
+| **Owner / admin** | `users.role = 'admin'` (the first user, or invited as admin) | Every address (the modeled `admin` relation — not a code bypass). |
 | **Member** | `users.role = 'member'` | Only addresses granted directly or via a team. |
+| **Personal-mailbox owner** | a member who **self-claimed** an address at registration | A member whose grants are a **single direct grant** to the address they claimed — no special principal type, just a member with one grant. |
 | **API key** (later) | a scoped key row | Same grant model as a member; scope resolved from the key, never the request. |
+
+A **personal-mailbox owner** is therefore not a new code path: claiming `you@domain` simply creates an
+`addresses` row + a direct `address_grants(address ← user)` tuple. Everything downstream — the
+predicate, deny-by-default, isolation — is identical to any other member with one grant.
 
 The **Actor** is the request-scoped capability the gateway runs every query against:
 
@@ -207,10 +212,27 @@ async listMessages(actor: Actor, opts): Promise<MessageRow[]> {
    `Actor`. A new method without a scope param fails the test, so "every query is scoped" is a typed,
    tested invariant, not developer discipline.
 
-## 9. Rollout & deferred
+## 9. Onboarding → grants
+
+Registration is self-serve (Google OAuth, or email + password + code). The resulting grants depend on
+state (see [`audience.md`](audience.md) "Onboarding"):
+
+| At registration | Result | ACL effect |
+|---|---|---|
+| **No users yet** | First user → **admin** | The `admin` relation (sees all addresses). |
+| **Email was invited** | Activated as a **member** | Keeps the team/address grants the invite carried. |
+| **Not invited + open registration ON + address free** | **Claim a personal mailbox** | Create `addresses(you@domain)` + one `address_grants(address ← user)`. |
+| **Not invited + open registration OFF** | **Rejected** | Invite-only; no row created. |
+
+Two gates govern the claim path: an admin setting **`OPEN_REGISTRATION`** (off by default → invite-only),
+**and** the chosen address being free (not an existing `addresses` row). Both must hold. Admins and
+team-admins can later invite a personal owner to a team, adding grants on top of their personal address.
+
+## 10. Rollout & deferred
 
 - **V1:** addresses + teams + `address_grants` + admin/member; the scoped `MailRepo` + predicate +
-  lint + negative tests. Owner grants addresses to teams and users; everyone sees exactly their slice.
+  lint + negative tests; **self-serve onboarding** (first-admin / invited / claim-personal / invite-only)
+  gated by `OPEN_REGISTRATION`. Everyone sees exactly their slice.
 - **Team-admin tier:** `team_members.role = 'admin'` lets a member manage *their* team's membership
   (not create teams or touch other teams). Ships once basic grants are solid.
 - **Deferred:** API-key principals (same model, precomputed scope); **message/label-level** grants;
