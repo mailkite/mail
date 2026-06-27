@@ -22,7 +22,7 @@ in [`teams.md`](teams.md).
 | A3 — Admin: addresses/teams/grants | ✅ |
 | A4 — Onboarding & open registration | ✅ |
 | A5 — Scoped API + UI | ✅ |
-| A6 — Team-admin tier *(optional)* | ✅ backend |
+| A6 — Team-admin tier *(optional)* | ✅ |
 
 ## Principles
 
@@ -109,6 +109,10 @@ team app's flat "uninvited → 403" gate ([`acl.md`](acl.md) §9, [`audience.md`
 ### A6 — Team-admin tier *(optional)*
 - `team_members.role='admin'` may add/remove members of **their** team only (not create teams or
   touch other teams). A scoped slice of the admin surface.
+- Backend: `GET /api/teams` returns my teams + `myRole`; `POST/DELETE /api/teams/:id/members` gated by
+  `canAdminTeam` (`actor.isAdmin || repo.isTeamAdmin(teamId, userId)`).
+- UI: a member-facing **Teams** screen (`packages/ui/src/screens/TeamAdmin.tsx`), surfaced in the nav
+  only for a non-admin who is `admin` on at least one team; admins use the Settings → Access section.
 - **Exit:** a team-admin manages their team; cannot widen their own grants or reach other teams.
 
 ## Rollout & migration notes

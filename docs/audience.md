@@ -69,8 +69,9 @@ depends on the state of the deployment:
 | Toggle open registration | ✅ | — | — | — |
 | Configure the app (keys, branding) | ✅ | — | — | — |
 
-A **team-admin** is an optional middle tier (a member who can manage *their* team's membership) —
-see [`acl.md`](acl.md) for whether it ships in V1 or later.
+A **team-admin** is an optional middle tier (a member who can manage *their* team's membership). It is
+**shipped** (phase A6): a non-admin who is `admin` on a team gets a member-facing **Teams** screen to
+add/remove that team's members — see [`acl.md`](acl.md) §10.
 
 ## 4. The boundary (deny-by-default)
 

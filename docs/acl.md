@@ -53,13 +53,18 @@ domain-local by construction. (Multi-domain is a platform concern, not V1.)
 | Principal | Source | Authority |
 |---|---|---|
 | **Owner / admin** | `users.role = 'admin'` (the first user, or invited as admin) | Every address (the modeled `admin` relation — not a code bypass). |
-| **Member** | `users.role = 'member'` | Only addresses granted directly or via a team. |
+| **Member** | `users.role = 'user'` | Only addresses granted directly or via a team. |
 | **Personal-mailbox owner** | a member who **self-claimed** an address at registration | A member whose grants are a **single direct grant** to the address they claimed — no special principal type, just a member with one grant. |
 | **API key** (later) | a scoped key row | Same grant model as a member; scope resolved from the key, never the request. |
 
 A **personal-mailbox owner** is therefore not a new code path: claiming `you@domain` simply creates an
 `addresses` row + a direct `address_grants(address ← user)` tuple. Everything downstream — the
 predicate, deny-by-default, isolation — is identical to any other member with one grant.
+
+> **Two distinct `role` columns** (don't conflate them): the account-level **`users.role`** is
+> `'admin' | 'user'` (`'user'` = the "member" principal above; first user is `'admin'`), while the
+> team-level **`team_members.role`** is `'admin' | 'member'` — `'admin'` there is the optional
+> **team-admin** tier (§10), a `users.role='user'` who manages *their* team's membership.
 
 The **Actor** is the request-scoped capability the gateway runs every query against:
 
@@ -233,8 +238,9 @@ team-admins can later invite a personal owner to a team, adding grants on top of
 - **V1:** addresses + teams + `address_grants` + admin/member; the scoped `MailRepo` + predicate +
   lint + negative tests; **self-serve onboarding** (first-admin / invited / claim-personal / invite-only)
   gated by `OPEN_REGISTRATION`. Everyone sees exactly their slice.
-- **Team-admin tier:** `team_members.role = 'admin'` lets a member manage *their* team's membership
-  (not create teams or touch other teams). Ships once basic grants are solid.
+- **Team-admin tier (shipped):** `team_members.role = 'admin'` lets a member manage *their* team's
+  membership (not create teams or touch other teams). Backend (`/api/teams/:id/members`, gated by
+  `isTeamAdmin`) and the member-facing **Teams** screen (`TeamAdmin.tsx`) are both live (phase A6).
 - **Deferred:** API-key principals (same model, precomputed scope); **message/label-level** grants;
   multi-domain in one deployment; time-boxed / least-privilege grant expiry.
 
