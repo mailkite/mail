@@ -43,6 +43,13 @@ export interface AccessView {
 }
 export type GrantSubject = { userId: string } | { teamId: string }
 
+export interface MyTeam { id: string; name: string; created_at: number; myRole: string }
+export interface TeamsView {
+  teams: MyTeam[]
+  members: { team_id: string; user_id: string; role: string }[]
+  users: { id: string; email: string }[]
+}
+
 export interface SessionUser {
   email: string
   role: 'admin' | 'user'
@@ -144,6 +151,12 @@ export const api = {
   removeTeamMember: (teamId: string, userId: string) => del(`/api/admin/teams/${teamId}/members/${userId}`),
   grant: (addressId: string, who: GrantSubject) => postJSON<{ ok: boolean }>('/api/admin/grants', { addressId, ...who }),
   revoke: (addressId: string, who: GrantSubject) => del('/api/admin/grants', { addressId, ...who }),
+
+  // ---- team-admin (a member managing their own team) -----------------------
+  teams: () => getJSON<TeamsView>('/api/teams'),
+  teamAddMember: (teamId: string, userId: string) =>
+    postJSON<{ ok: boolean }>(`/api/teams/${teamId}/members`, { userId }),
+  teamRemoveMember: (teamId: string, userId: string) => del(`/api/teams/${teamId}/members/${userId}`),
 
   listMessages: (opts: { folder?: Folder; q?: string } = {}) => {
     const p = new URLSearchParams()

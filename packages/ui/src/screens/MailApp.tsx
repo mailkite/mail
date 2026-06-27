@@ -7,6 +7,7 @@ import { MessageView } from './MessageView'
 import { Compose, type ComposeDraft } from './Compose'
 import { Settings } from './Settings'
 import { Profile } from './Profile'
+import { TeamAdmin } from './TeamAdmin'
 
 export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () => void }) {
   const [messages, setMessages] = useState<MessageRow[]>([])
@@ -17,12 +18,19 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<ComposeDraft | null>(null)
   const [config, setConfig] = useState<AppConfig | null>(null)
-  const [view, setView] = useState<'mail' | 'settings' | 'profile'>('mail')
+  const [view, setView] = useState<'mail' | 'settings' | 'profile' | 'teams'>('mail')
+  const [canManageTeam, setCanManageTeam] = useState(false)
   const isAdmin = user?.role === 'admin'
 
   useEffect(() => {
     api.config().then(setConfig).catch(() => setConfig({ sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '', appName: 'MailKite Mail', logoUrl: '', openRegistration: false }))
   }, [])
+
+  // A non-admin who admins a team gets a Teams nav (admins manage all via Settings → Access).
+  useEffect(() => {
+    if (isAdmin) { setCanManageTeam(false); return }
+    api.teams().then((r) => setCanManageTeam(r.teams.some((t) => t.myRole === 'admin'))).catch(() => {})
+  }, [isAdmin])
 
   const load = useCallback(() => {
     setLoading(true)
@@ -80,11 +88,15 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
       profileActive={view === 'profile'}
       onSettings={isAdmin ? () => setView('settings') : undefined}
       settingsActive={view === 'settings'}
+      onTeams={canManageTeam ? () => { setSelected(null); setView('teams') } : undefined}
+      teamsActive={view === 'teams'}
       appName={config?.appName}
       logoUrl={config?.logoUrl}
     >
       {view === 'settings' ? (
         <Settings />
+      ) : view === 'teams' ? (
+        <TeamAdmin />
       ) : view === 'profile' && user ? (
         <Profile user={user} onLogout={onLogout ?? (() => {})} />
       ) : (

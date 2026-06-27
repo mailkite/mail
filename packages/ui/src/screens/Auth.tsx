@@ -33,6 +33,7 @@ export function Auth({
   googleClientId = '',
   appName,
   logoUrl,
+  openRegistration = false,
   onAuthed,
 }: {
   initialMode?: Mode
@@ -40,6 +41,7 @@ export function Auth({
   googleClientId?: string
   appName?: string
   logoUrl?: string
+  openRegistration?: boolean
   onAuthed: (u: SessionUser) => Promise<void>
 }) {
   const [mode, setMode] = useState<Mode>(initialMode)
@@ -97,7 +99,10 @@ export function Auth({
   }
 
   const title = mode === 'signup' ? 'Create your account' : mode === 'verify' ? 'Verify your email' : 'Sign in'
-  const subtitle = mode === 'verify' ? `Enter the code sent to ${email.trim() || 'your email'}.` : undefined
+  const subtitle =
+    mode === 'verify' ? `Enter the code sent to ${email.trim() || 'your email'}.`
+    : mode === 'signup' && openRegistration ? 'Anyone can sign up — pick your mailbox after verifying.'
+    : undefined
 
   return (
     <AuthScreen title={title} subtitle={subtitle} brandName={appName} logoUrl={logoUrl}>

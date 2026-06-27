@@ -103,11 +103,13 @@ export function App() {
   if (!user) {
     return (
       <Auth
-        initialMode={config.needsSetup ? 'signup' : 'login'}
+        // First run, or open registration on → land on Sign up by default.
+        initialMode={config.needsSetup || config.openRegistration ? 'signup' : 'login'}
         oauth={config.oauth}
         googleClientId={config.googleClientId}
         appName={config.appName}
         logoUrl={config.logoUrl}
+        openRegistration={config.openRegistration}
         onAuthed={confirmSession}
       />
     )

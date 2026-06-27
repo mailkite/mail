@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Inbox, Moon, Sun, Archive, Star, PenSquare, Search, Settings as SettingsIcon } from 'lucide-react'
+import { Inbox, Moon, Sun, Archive, Star, PenSquare, Search, Settings as SettingsIcon, Users } from 'lucide-react'
 import type { Folder } from '@mailkite/core'
 import type { SessionUser } from '../lib/api'
 import { useTheme } from '../theme/ThemeProvider'
@@ -31,6 +31,8 @@ export function AppShell({
   profileActive,
   onSettings,
   settingsActive,
+  onTeams,
+  teamsActive,
   appName,
   logoUrl,
 }: {
@@ -46,6 +48,8 @@ export function AppShell({
   profileActive?: boolean
   onSettings?: () => void
   settingsActive?: boolean
+  onTeams?: () => void
+  teamsActive?: boolean
   appName?: string
   logoUrl?: string
 }) {
@@ -106,6 +110,20 @@ export function AppShell({
               {label}
             </button>
           ))}
+          {onTeams && (
+            <button
+              onClick={onTeams}
+              className={
+                'mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ' +
+                (teamsActive
+                  ? 'text-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-accent)_12%,transparent)]'
+                  : 'text-[var(--color-muted)] hover:text-[var(--color-text)]')
+              }
+            >
+              <Users size={16} />
+              Teams
+            </button>
+          )}
           {onSettings && (
             <button
               onClick={onSettings}
