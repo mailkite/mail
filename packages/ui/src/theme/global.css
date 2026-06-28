@@ -16,15 +16,16 @@
     "Liberation Mono", monospace;
 }
 
-/* Light theme: override the same variables the utilities resolve at runtime. */
+/* Light theme — "Unified Light" / Focus palette: calm surfaces, single indigo
+   accent. Overrides the same variables the utilities resolve at runtime. */
 html[data-theme="light"] {
-  --color-bg: #ffffff;
-  --color-panel: #f6f8fc;
-  --color-border: #e3e8f0;
-  --color-text: #11141b;
-  --color-muted: #5a6473;
-  --color-accent: #2f6fe0;
-  --color-accent-2: #6a4dff;
+  --color-bg: #f7f8fa;
+  --color-panel: #ffffff;
+  --color-border: #e2e8f0; /* slate-200 */
+  --color-text: #0f172a;   /* slate-900 */
+  --color-muted: #64748b;  /* slate-500 */
+  --color-accent: #4f46e5; /* indigo-600 */
+  --color-accent-2: #7c3aed; /* violet-600 */
 }
 
 html {

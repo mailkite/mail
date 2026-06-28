@@ -23,8 +23,8 @@ function resolve(mode: ThemeMode): 'light' | 'dark' {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<ThemeMode>(() => {
-    if (typeof localStorage === 'undefined') return 'dark'
-    return (localStorage.getItem(STORAGE_KEY) as ThemeMode | null) ?? 'dark'
+    if (typeof localStorage === 'undefined') return 'light'
+    return (localStorage.getItem(STORAGE_KEY) as ThemeMode | null) ?? 'light'
   })
   const resolved = resolve(mode)
 
