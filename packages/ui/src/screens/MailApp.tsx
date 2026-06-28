@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { MessageRow, Folder } from '@mailkite/core'
-import { Moon, Sun, Settings as SettingsIcon, Users } from 'lucide-react'
+import { Moon, Sun, Settings as SettingsIcon, Users, ArrowLeft, BookOpen } from 'lucide-react'
 import { api, type AppConfig, type SessionUser } from '../lib/api'
 import { Compose, type ComposeDraft } from './Compose'
 import { Settings } from './Settings'
@@ -53,6 +53,18 @@ function pathFor(r: Route): string {
 
 const initialRoute = parseRoute(typeof location !== 'undefined' ? location.pathname : '/')
 
+/** Back bar shown atop the settings/profile/teams routes — router.back(). */
+function BackBar({ label, onBack }: { label: string; onBack: () => void }) {
+  return (
+    <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900">
+      <button onClick={onBack} aria-label="Back" className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+        <ArrowLeft size={14} /> Back
+      </button>
+      <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{label}</span>
+    </div>
+  )
+}
+
 /**
  * Unified Light — three-column, keyboard-first inbox with URL routing.
  * Every surface has a route: /inbox · /starred · /archive · /m/:id (one per
@@ -73,8 +85,15 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
     initialRoute.kind === 'settings' || initialRoute.kind === 'profile' || initialRoute.kind === 'teams' ? initialRoute.kind : 'mail',
   )
   const [canManageTeam, setCanManageTeam] = useState(false)
+  const [railCollapsed, setRailCollapsed] = useState(() => {
+    try { return localStorage.getItem('mailkite.rail.collapsed') === '1' } catch { return false }
+  })
   const isAdmin = user?.role === 'admin'
   const { resolved, setMode } = useTheme()
+
+  useEffect(() => { try { localStorage.setItem('mailkite.rail.collapsed', railCollapsed ? '1' : '0') } catch { /* no-op */ } }, [railCollapsed])
+  // Opening a message auto-collapses the rail to icons to make room for reading.
+  const railShownCollapsed = railCollapsed || !!selected
 
   useEffect(() => {
     api.config().then(setConfig).catch(() =>
@@ -139,6 +158,8 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
     try { history.pushState({}, '', pathFor(r)) } catch { /* no-op */ }
   }
   function goHome() { try { history.pushState({}, '', '/') } catch { /* no-op */ } ; setView('mail'); setSelected(null); setFolder('inbox') }
+  // Router-style back: pop history (popstate re-syncs state); fall back to home.
+  function goBackHistory() { if (typeof history !== 'undefined' && history.length > 1) history.back(); else goHome() }
   function goFolder(f: Folder) { navigate({ kind: 'folder', folder: f }); setView('mail'); setSelected(null); setFolder(f) }
   function goView(v: Exclude<View, 'mail'>) { navigate({ kind: v }); setSelected(null); setView(v) }
   function openMessage(m: MessageRow) { navigate({ kind: 'message', id: m.id }); setView('mail'); showMessage(m) }
@@ -181,7 +202,7 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
       if (selected) {
         if (e.key === 'e' || e.key === 'E') { e.preventDefault(); archive(selected) }
         else if ((e.key === 'r' || e.key === 'R') && canSend) { e.preventDefault(); reply(selected) }
-        else if (e.key === 'Escape') { e.preventDefault(); goBack() }
+        else if (e.key === 'Escape') { e.preventDefault(); goBackHistory() }
         return
       }
       if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); setCursor((c) => Math.min(c + 1, messages.length - 1)) }
@@ -213,6 +234,9 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
           />
           <span className="ml-auto rounded bg-white px-1.5 text-[11px] text-slate-400 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">⌘K</span>
         </div>
+        <a href="/redesign.html" target="_blank" rel="noopener noreferrer" aria-label="Design docs" title="Design docs" className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">
+          <BookOpen size={16} />
+        </a>
         <button onClick={() => setMode(resolved === 'dark' ? 'light' : 'dark')} aria-label="Toggle theme" className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">
           {resolved === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
@@ -234,56 +258,69 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
       </header>
 
       {view === 'settings' ? (
-        <div className="min-h-0 flex-1 overflow-y-auto"><Settings /></div>
+        <div className="flex min-h-0 flex-1 flex-col"><BackBar label="Settings" onBack={goBackHistory} /><div className="flex-1 overflow-y-auto"><Settings /></div></div>
       ) : view === 'teams' ? (
-        <div className="min-h-0 flex-1 overflow-y-auto"><TeamAdmin /></div>
+        <div className="flex min-h-0 flex-1 flex-col"><BackBar label="Teams" onBack={goBackHistory} /><div className="flex-1 overflow-y-auto"><TeamAdmin /></div></div>
       ) : view === 'profile' && user ? (
-        <div className="min-h-0 flex-1 overflow-y-auto"><Profile user={user} onLogout={onLogout ?? (() => {})} /></div>
+        <div className="flex min-h-0 flex-1 flex-col"><BackBar label="Account" onBack={goBackHistory} /><div className="flex-1 overflow-y-auto"><Profile user={user} onLogout={onLogout ?? (() => {})} /></div></div>
       ) : (
         <>
-          <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
-            <ResizablePanel id="rail" defaultSize="19%" minSize="14%" maxSize="26%">
+          <div className="flex min-h-0 flex-1">
+            {/* Left rail — fixed collapsible aside (icons when collapsed). */}
+            <aside className={'shrink-0 border-r border-slate-200 transition-[width] duration-200 dark:border-slate-800 ' + (railShownCollapsed ? 'w-14' : 'w-56')}>
               <LeftRail
                 folder={folder}
                 onFolder={goFolder}
-                inboxCount={folder === 'inbox' ? messages.filter((m) => m.unread).length : undefined}
+                inboxCount={messages.filter((m) => m.unread).length}
                 canCompose={canSend}
                 onCompose={() => setDraft({ to: '', subject: '' })}
+                collapsed={railShownCollapsed}
+                onToggle={() => setRailCollapsed((c) => !c)}
               />
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel id="center" defaultSize="52%" minSize="32%">
-              {selected ? (
-                <ReadingPane
-                  message={selected}
-                  canSend={canSend}
-                  onBack={goBack}
-                  onReply={(m) => reply(m)}
-                  onStar={toggleStar}
-                  onArchive={archive}
-                  onLater={dismiss}
-                  onAside={dismiss}
-                />
-              ) : (
-                <TriageList
-                  messages={messages}
-                  loading={loading}
-                  error={error}
-                  cursor={cursor}
-                  title={query ? `Search · “${query}”` : meta.title}
-                  subtitle={query ? `${messages.length} result${messages.length === 1 ? '' : 's'}` : meta.subtitle}
-                  onOpen={openMessage}
-                  onStar={toggleStar}
-                  onLater={dismiss}
-                  onAside={dismiss}
-                />
-              )}
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel id="assistant" defaultSize="29%" minSize="18%" maxSize="42%">
-              <AssistantPanel message={selected} canSend={canSend} onSmartReply={(t) => selected && reply(selected, t)} />
-            </ResizablePanel>
-          </ResizablePanelGroup>
+            </aside>
+
+            {/* Content — list, then (when reading) the message opens to its right. */}
+            <div className="min-w-0 flex-1">
+              <ResizablePanelGroup key={selected ? 'reading' : 'list'} orientation="horizontal" className="h-full">
+                <ResizablePanel id="list" defaultSize={selected ? '34%' : '68%'} minSize="22%">
+                  <TriageList
+                    messages={messages}
+                    loading={loading}
+                    error={error}
+                    cursor={cursor}
+                    selectedId={selected?.id}
+                    title={query ? `Search · “${query}”` : meta.title}
+                    subtitle={query ? `${messages.length} result${messages.length === 1 ? '' : 's'}` : meta.subtitle}
+                    onOpen={openMessage}
+                    onStar={toggleStar}
+                    onLater={dismiss}
+                    onAside={dismiss}
+                  />
+                </ResizablePanel>
+                {selected && (
+                  <>
+                    <ResizableHandle withHandle />
+                    <ResizablePanel id="reading" defaultSize="42%" minSize="28%">
+                      <ReadingPane
+                        message={selected}
+                        canSend={canSend}
+                        onBack={goBackHistory}
+                        onReply={(m) => reply(m)}
+                        onStar={toggleStar}
+                        onArchive={archive}
+                        onLater={dismiss}
+                        onAside={dismiss}
+                      />
+                    </ResizablePanel>
+                  </>
+                )}
+                <ResizableHandle withHandle />
+                <ResizablePanel id="assistant" defaultSize={selected ? '24%' : '32%'} minSize="18%" maxSize="42%">
+                  <AssistantPanel message={selected} canSend={canSend} onSmartReply={(t) => selected && reply(selected, t)} />
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            </div>
+          </div>
 
           {/* Fixed triage footer — spans the window, never scrolls. */}
           <footer className="flex shrink-0 items-center gap-2 border-t border-slate-200 bg-white px-5 py-2 text-[11px] dark:border-slate-800 dark:bg-slate-900">

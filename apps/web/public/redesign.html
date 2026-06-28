@@ -1,0 +1,1119 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>MailKite Mail — Unified Light redesign</title><style>
+  :root{color-scheme:light}
+  *{box-sizing:border-box}
+  body{background:#e8f0ff;margin:0;padding:0}
+  .wrap{max-width:860px;margin:0 auto;padding:24px 16px}
+  .card{background:#fff;border:1px solid #d6e2f5;border-radius:14px;overflow:hidden}
+  .head{padding:24px 28px 4px}
+  .content{padding:4px 28px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#3c4150;font-size:14px;line-height:1.6}
+  .content h1{font-size:22px;color:#16181d;margin:26px 0 8px;line-height:1.3}
+  .content h2{font-size:18px;color:#16181d;margin:22px 0 6px;border-top:1px solid #eef3fb;padding-top:14px}
+  .content h3{font-size:15px;color:#16181d;margin:16px 0 4px}
+  .content code{background:#f3f6fc;padding:1px 5px;border-radius:4px;font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .content pre{background:#0f1115;color:#e6e9ef;padding:14px;border-radius:10px;overflow:auto;font-size:12px}
+  .content pre code{background:transparent;color:inherit;padding:0}
+  .content table{border-collapse:collapse;width:100%;font-size:12px;margin:10px 0;display:block;overflow-x:auto}
+  .content th,.content td{border:1px solid #e3e8f0;padding:6px 8px;text-align:left;vertical-align:top}
+  .content th{background:#f6f8fc;color:#16181d}
+  .content blockquote{border-left:3px solid #5b9bff;margin:10px 0;padding:4px 12px;color:#5a6473;background:#f6f9ff}
+  .content a{color:#2f6fe0}
+  .content ul,.content ol{padding-left:20px}
+  .foot{padding:18px 28px;border-top:1px solid #eef3fb;color:#6b7280;font-size:12px;line-height:1.6}
+</style></head>
+<body><div class="wrap"><div class="card">
+<div class="head"><img src="https://mailkite.dev/brand/logo-email.png" width="140" alt="MailKite" style="display:block;border:0;height:auto;width:140px"/>
+<p style="margin:14px 0 0;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#2f6fe0">Design docs</p>
+<h1 style="margin:4px 0 0;font-size:21px;color:#16181d">MailKite Mail — Unified Light redesign</h1>
+<p style="margin:8px 0 0;font-size:14px;color:#3c4150">The phased build plan, then the feature spec. Source of truth for the live UI on mail.mailkite.dev.</p></div>
+<div class="content"><h1>MailKite Mail — Unified Light: Phased Build Plan</h1>
+<blockquote>
+<p><strong>How to read this:</strong> the <em>what</em> and <em>why</em> live in <a href="./ui-redesign.md"><code>ui-redesign.md</code></a>
+(the feature spec) and the clickable mockup at
+<a href="../apps/web/public/ui-explorations.html"><code>apps/web/public/ui-explorations.html</code></a>
+— open it and select the <strong>☼ E · Unified · Light</strong> tab (<code>…#e</code>). <strong>This</strong> document
+is the <em>how and in what order</em> — a build plan that aligns the redesign&#39;s features
+with what the repo and docs actually ship today, structured <strong>mock-first</strong>.</p>
+</blockquote>
+<hr>
+<h2>1. Strategy — mock first, then implement</h2>
+<p>The work runs in <strong>two tracks</strong>, in order:</p>
+<ol>
+<li><strong>Mock track (M0–M5)</strong> — build the <em>entire</em> Unified Light UI as static React in
+the Focus light theme, wired only to placeholder data. No migrations, no new API.
+Goal: <strong>see and click the whole UI</strong> against tab <strong>E</strong>, get sign-off, de-risk
+layout/copy/spacing before any backend exists.</li>
+<li><strong>Implement track (I1–I6)</strong> — replace placeholder data with real data and add the
+backend (migrations, repo, routes, AI) <strong>one feature area at a time</strong>, each one
+&quot;lighting up&quot; mocks that already exist.</li>
+</ol>
+<pre><code>Mock track  M0 ─ M1 ─ M2 ─ M3 ─ M4 ─ M5   ──►  [sign-off gate]
+                                                   │
+Impl track                          I1 ─ I2 ─ I3 ─┤
+                                         └─ I4     ├─ I6
+                                    I5 (after I2/I3)┘
+</code></pre>
+<p>Every mock phase is independently viewable. Every implement phase is independently
+shippable. The mock track is pure <code>packages/ui</code> work; the implement track adds
+<code>packages/core</code> + <code>apps/web</code> per phase.</p>
+<hr>
+<h2>2. Current state (grounded — what exists today)</h2>
+<p><strong>UI</strong> (<code>packages/ui/src/</code>): a <strong>two-pane</strong> mail client.</p>
+<ul>
+<li><code>screens/AppShell.tsx</code> — header (logo · search · theme toggle · avatar) + left nav
+rail (<code>w-48</code>: Compose, Inbox/Starred/Archive folders, Teams/Settings) + <code>{children}</code>.</li>
+<li><code>screens/MailApp.tsx</code> — orchestrator; renders <code>grid-cols-[340px_1fr]</code> =
+<code>InboxList</code> + <code>MessageView</code>; owns <code>messages/selected/folder/query</code> state.</li>
+<li><code>screens/InboxList.tsx</code> (flat list) · <code>screens/MessageView.tsx</code> (reading pane,
+sanitized HTML + SPF/DKIM/DMARC chips) · <code>screens/Compose.tsx</code> (modal).</li>
+<li><strong>Theme</strong>: pure CSS-variable system in <code>theme/global.css</code> (<code>--color-bg/panel/border/ text/muted/accent</code>), flipped by <code>data-theme</code> on <code>&lt;html&gt;</code>; <code>ThemeProvider</code> <strong>defaults
+to dark</strong>. Tailwind v4, classes reference <code>var(--color-*)</code> inline.</li>
+<li><strong>Reusable</strong>: <code>Avatar</code> (hashed-hue fallback), <code>Logo</code>, <code>Button</code> (primary/ghost),
+<code>auth-ui</code>, <code>cn()</code>, <code>sanitizeEmailHtml()</code>.</li>
+<li><strong>API client</strong> <code>lib/api.ts</code>: <code>listMessages({folder,q})</code>, <code>getMessage(id)</code>,
+<code>updateFlags(id,{unread,starred,archived})</code>, <code>send(...)</code>, <code>identities()</code>, plus auth/
+admin/teams. <code>Folder = &#39;inbox&#39;|&#39;starred&#39;|&#39;archive&#39;</code>.</li>
+</ul>
+<p><strong>Data</strong> (<code>packages/core/src/server/schema.ts</code>, migrations <code>apps/web/migrations/</code>):</p>
+<ul>
+<li>Latest migration: <strong><code>0004_acl.sql</code></strong> → new triage migrations start at <strong>0005</strong>.</li>
+<li><code>messages</code> columns today: <code>id, thread_id, direction, from_addr, to_addr, subject, text_body, html_body, spf, dkim, dmarc, spam, unread, starred, archived, received_at, address_id</code>. <strong>No</strong> <code>snooze_until / reply_later / set_aside / category</code>.</li>
+<li><code>apps/web/test/migration-drift.test.ts</code> <strong>enforces</strong> that migrations and <code>schema.ts</code>
+stay in lockstep — any new migration must be mirrored in <code>schema.ts</code>.</li>
+</ul>
+<p><strong>API</strong> (<code>apps/web/src/app.ts</code>): <code>GET /api/messages?folder&amp;q</code>, <code>GET /api/messages/:id</code>,
+<code>PATCH /api/messages/:id {unread,starred,archived}</code>, <code>POST /api/send</code>. Everything is
+<strong>ACL-scoped</strong> through <code>Actor</code>/<code>actorOf(c)</code> — new per-user features must scope the same way.</p>
+<blockquote>
+<p>⚠️ <strong>Known drift:</strong> <code>docs/data-model.md</code> describes a <em>richer</em> schema than <code>schema.ts</code>
+actually implements. Author the new migrations against the <strong>real</strong> 0004 schema above
+(not the doc), keep <code>migration-drift</code> green, and reconcile <code>data-model.md</code> in <strong>I6</strong>.</p>
+</blockquote>
+<hr>
+<h2>3. Feature ↔ docs alignment</h2>
+<p>What the redesign asks for, vs. what the docs already promise and the code already has.
+&quot;Tier&quot; is the existing <code>features.md</code> tier; &quot;Doc status&quot; is where it lives today.</p>
+<table>
+<thead>
+<tr>
+<th>Redesign feature</th>
+<th>Doc status</th>
+<th>Code today</th>
+<th>New schema</th>
+<th>New API</th>
+<th>Mock</th>
+<th>Impl</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3-column shell + light theme</td>
+<td>Documented <code>features.md:45,126</code>, <code>theming.md</code></td>
+<td>2-pane, dark default</td>
+<td>—</td>
+<td>—</td>
+<td>M0</td>
+<td>I1</td>
+</tr>
+<tr>
+<td>Triage: <strong>Archive</strong></td>
+<td>Documented <code>features.md:84</code></td>
+<td>✅ <code>archived</code> flag</td>
+<td>—</td>
+<td>✅ PATCH</td>
+<td>M2</td>
+<td>I1</td>
+</tr>
+<tr>
+<td>Triage: <strong>Snooze</strong></td>
+<td>Documented (V2) <code>features.md:50</code></td>
+<td>❌</td>
+<td><code>snooze_until</code></td>
+<td>PATCH ext</td>
+<td>M2</td>
+<td>I2</td>
+</tr>
+<tr>
+<td>Triage: <strong>Reply Later</strong></td>
+<td>Documented (V2) <code>features.md:55</code></td>
+<td>❌</td>
+<td><code>reply_later(_pos)</code></td>
+<td>PATCH ext</td>
+<td>M2</td>
+<td>I2</td>
+</tr>
+<tr>
+<td>Triage: <strong>Set Aside</strong></td>
+<td>Documented (V2) <code>features.md:55</code></td>
+<td>❌</td>
+<td><code>set_aside(_pos)</code></td>
+<td>PATCH ext</td>
+<td>M2</td>
+<td>I2</td>
+</tr>
+<tr>
+<td><strong>Boxes</strong> (Priority/Feed/Receipts)</td>
+<td><strong>Not in docs</strong></td>
+<td>❌</td>
+<td><code>category</code> + ingest</td>
+<td><code>?box=</code></td>
+<td>M1</td>
+<td>I3</td>
+</tr>
+<tr>
+<td><strong>Views</strong> (saved slices)</td>
+<td>Mentioned (Later) <code>features.md:90</code></td>
+<td>❌</td>
+<td><code>views</code> table</td>
+<td><code>/api/views</code></td>
+<td>M1</td>
+<td>I3</td>
+</tr>
+<tr>
+<td><strong>Bundles</strong></td>
+<td><strong>Not in docs</strong></td>
+<td>❌</td>
+<td>none (derived)</td>
+<td>reuse list</td>
+<td>M1/M2</td>
+<td>I3</td>
+</tr>
+<tr>
+<td><strong>Screener</strong></td>
+<td>Mentioned (Later) <code>features.md:54</code></td>
+<td>❌</td>
+<td><code>screened_senders</code></td>
+<td><code>/api/screener</code></td>
+<td>M1</td>
+<td>I3</td>
+</tr>
+<tr>
+<td><strong>Command palette ⌘K</strong> + keys</td>
+<td>Documented (V2) <code>features.md:138-142</code></td>
+<td>❌</td>
+<td>—</td>
+<td>—</td>
+<td>M4</td>
+<td>I4</td>
+</tr>
+<tr>
+<td><strong>NL / semantic search</strong></td>
+<td>FTS only <code>features.md:118-119</code>; semantic <strong>not in docs</strong></td>
+<td>keyword via <code>q</code></td>
+<td>FTS index (opt)</td>
+<td><code>/api/ai/search</code></td>
+<td>M0 hdr</td>
+<td>I5</td>
+</tr>
+<tr>
+<td><strong>AI summary</strong></td>
+<td>Mentioned (Later) <code>features.md:77</code></td>
+<td>❌</td>
+<td><code>thread_summaries</code></td>
+<td><code>/api/ai/summary</code></td>
+<td>M3</td>
+<td>I5</td>
+</tr>
+<tr>
+<td><strong>Smart replies</strong></td>
+<td>Mentioned (Later) <code>features.md:77</code></td>
+<td>❌</td>
+<td>none</td>
+<td><code>/api/ai/smart-replies</code></td>
+<td>M3</td>
+<td>I5</td>
+</tr>
+<tr>
+<td><strong>Extracted to-dos</strong></td>
+<td><strong>Not in docs</strong></td>
+<td>❌</td>
+<td><code>todos</code> table</td>
+<td><code>/api/ai/todos</code>,<code>/api/todos</code></td>
+<td>M3</td>
+<td>I5</td>
+</tr>
+<tr>
+<td><strong>Assistant panel + Organize</strong></td>
+<td><strong>Not in docs</strong></td>
+<td>❌</td>
+<td>ephemeral</td>
+<td><code>/api/ai/assistant</code>,<code>/organize</code></td>
+<td>M3/M5</td>
+<td>I5</td>
+</tr>
+<tr>
+<td>Trust chips, send-as, theme switch, ACL</td>
+<td>Documented + shipped</td>
+<td>✅</td>
+<td>—</td>
+<td>—</td>
+<td>reuse</td>
+<td>keep</td>
+</tr>
+</tbody></table>
+<p><strong>Docs that must change</strong> (folded into the phases that touch them; final sweep in I6):
+<code>features.md</code> (promote Snooze/Reply-Later/Set-Aside/Screener/Views out of &quot;Later&quot;; add
+Boxes, Bundles, Assistant, to-dos, semantic search) · <code>data-model.md</code> (new tables +
+columns; fix the schema↔doc drift) · <code>architecture.md</code> (triage state-transition/auto-clear
+semantics) · <code>acl.md</code> (scope rules for views/screener/todos/AI) · <code>stack.md</code> +
+<code>implementation.md</code> (new routes + phase sequencing) · <code>admin-dashboard.md</code> (Screener/AI gates).</p>
+<hr>
+<h2>4. Mock track — build the UI (no backend)</h2>
+<p>All in <code>packages/ui</code>. Static fixture data lives in one <code>screens/unified/_fixtures.ts</code>.
+Mount the new layout behind a flag (<code>?ui=unified</code> or a dev-only route) so the shipping
+two-pane app is untouched until <strong>I1</strong>. <strong>Source of truth for every pixel: tab <code>#e</code>.</strong></p>
+<h3>M0 · Foundations — tokens + shell skeleton · <em>S</em></h3>
+<ul>
+<li>Vendor artifacts (✅ done: <code>docs/ui-redesign.md</code>, <code>public/ui-explorations.html</code>).</li>
+<li>Add the <strong>Focus light</strong> palette to <code>theme/global.css</code>: app surface <code>#f7f8fa</code>, card
+<code>#fff</code>, border <code>slate-200</code>, text <code>slate-900</code>, muted <code>slate-500</code>, <strong>accent <code>indigo-600</code></strong>,
+triage warmth <code>amber-400</code>, positive <code>emerald-500</code>; radius <code>xl</code> cards / <code>lg</code> controls.
+Add as token set alongside existing vars (don&#39;t break current dark/light).</li>
+<li>Build <code>screens/unified/MailLayout.tsx</code>: the header (mail glyph · &quot;Ask anything&quot;
+search · ⌘K hint · avatar) + <code>grid-cols-[236px_minmax(0,1fr)_322px]</code> with three
+independently-scrollable empty regions.</li>
+<li><strong>Done:</strong> the three calm columns + header render in light theme; matches <code>#e</code> frame.</li>
+</ul>
+<h3>M1 · Left rail · <em>S–M</em></h3>
+<p>Components: <code>LeftRail.tsx</code> → <code>RailScreener</code>, <code>RailNav</code> (Boxes + Bundles + Views), <code>OrganizeCard</code>.</p>
+<ul>
+<li>Screener banner (&quot;2 new senders want in&quot; · Let in / Screen out).</li>
+<li><strong>Boxes</strong>: 📥 Priority (amber count badge, active) · 📰 The Feed · 🧾 Receipts.</li>
+<li><strong>Bundles</strong>: ✉️ Newsletters · 🔔 Notifications.</li>
+<li><strong>Views</strong>: ⚡ Action required (active/indigo) · ⏳ Awaiting reply · 👥 From people · <code>+ New view…</code>.</li>
+<li><strong>Organize card</strong>: &quot;✦ Organize my inbox — Archive 23 · draft 3 replies&quot;.</li>
+<li><strong>Done:</strong> clicking a Box/View highlights it (local state); rail matches <code>#e</code> column 1.</li>
+</ul>
+<h3>M2 · Center triage list · <em>M</em></h3>
+<p>Components: <code>TriageList.tsx</code> → <code>TriageCard</code>, <code>BundleCard</code>, <code>TriageBar</code>.</p>
+<ul>
+<li>List header: box title + subtitle + <code>J K move · E archive</code> keyhints.</li>
+<li><strong>Selected card</strong>: avatar, name + time, subject, indigo AI-hint line, action row
+<code>↩ Reply later (L) · 📎 Set aside (S) · 🗓 Snooze (H) · ✦ Reply</code>.</li>
+<li><strong>Compact cards</strong>: VIP badge, hover-reveal quick actions (↩ Later / 📎 Aside).</li>
+<li><strong>Bundle card</strong>: emerald glyph, &quot;Newsletters · 9 new, bundled&quot;, sender preview, Open / Mark read.</li>
+<li><strong>TriageBar</strong> (footer): Reply Later face stack · Set Aside count · &quot;Inbox Zero in 3&quot; ·
+<code>Focus &amp; Reply →</code>.</li>
+<li>Local interaction only: <code>J/K</code> move selection, <code>E</code> removes a card from the list.</li>
+<li><strong>Done:</strong> column 2 matches <code>#e</code>; keyboard nav feels right against fixtures.</li>
+</ul>
+<h3>M3 · Assistant panel · <em>M</em></h3>
+<p>Components: <code>AssistantPanel.tsx</code> → <code>SummaryCard</code>, <code>TodoList</code>, <code>SmartReplies</code>, <code>AssistantChat</code>.</p>
+<ul>
+<li>Header: &quot;✦ Assistant&quot; + <code>on-device</code> badge.</li>
+<li><strong>Summary</strong> card (per selected sender) · <strong>Extracted to-dos</strong> (checkboxes toggle locally)
+· <strong>Smart replies</strong> (tappable chips) · one <strong>chat</strong> exchange bubble · Ask/instruct input.</li>
+<li><strong>Done:</strong> column 3 matches <code>#e</code>; selecting a card swaps the summary (from fixtures).</li>
+</ul>
+<h3>M4 · Command palette + keyboard help · <em>S</em></h3>
+<p>Components: <code>CommandPalette.tsx</code> (⌘K), <code>KeyHelp.tsx</code> (<code>?</code>), <code>lib/useHotkeys.ts</code> (scaffold).</p>
+<ul>
+<li>⌘K overlay: fuzzy-filter a <strong>static</strong> action registry (&quot;Snooze until tomorrow 9am&quot;,
+&quot;Move to View…&quot;, &quot;Summarize thread&quot;, &quot;Archive&quot;) + falls through to search box.</li>
+<li><code>?</code> cheatsheet overlay listing the shortcut map.</li>
+<li>Actions are no-ops/local in the mock.</li>
+<li><strong>Done:</strong> ⌘K and <code>?</code> open/close and filter; visually matches the product&#39;s intent.</li>
+</ul>
+<h3>M5 · Responsive, states &amp; Organize review · <em>M</em></h3>
+<ul>
+<li>Mobile reflow: single column + bottom tab bar (Boxes/List/Assistant) below <code>lg</code>.</li>
+<li>Empty / loading / inbox-zero states for each column.</li>
+<li><strong>Organize review modal</strong>: the proposed-action list (&quot;Archive 23 · draft 3 replies&quot;)
+with per-row confirm — the <em>review-before-apply</em> surface (static).</li>
+<li><strong>Done:</strong> the full Unified Light experience is clickable on desktop + mobile.</li>
+</ul>
+<blockquote>
+<p><strong>🚦 Sign-off gate</strong> — after M5 the whole UI is demoable against <code>#e</code>. Review copy,
+spacing, density, and information architecture <strong>here</strong>, before backend work begins.</p>
+</blockquote>
+<hr>
+<h2>5. Implement track — light up the mocks (backend + wiring)</h2>
+<h3>I1 · Shell cutover + light default · <em>M</em> · depends on M-track</h3>
+<ul>
+<li>Promote <code>unified/MailLayout</code> to the real path: replace <code>MailApp</code>&#39;s
+<code>grid-cols-[340px_1fr]</code> (InboxList+MessageView) with the 3-column layout; retire the
+<code>w-48</code> folder rail in <code>AppShell</code> (folders move into Boxes/Views later).</li>
+<li>Default the mail surface to <strong>light</strong> (<code>ThemeProvider</code> default or per-surface override);
+keep the dark twin (tab D palette) behind the existing toggle.</li>
+<li>Wire <strong>center list to real data</strong> (<code>api.listMessages</code>), selection → <code>getMessage</code> +
+mark-read, <code>E</code>/star → <code>updateFlags</code>, <code>J/K</code> real. Rail/Assistant stay on fixtures where
+no backend exists yet.</li>
+<li><strong>Done:</strong> the real inbox renders in Unified Light; shipped flags work by key + button;
+visually matches <code>#e</code>.</li>
+</ul>
+<h3>I2 · Triage core · <em>M</em> · depends on I1</h3>
+<ul>
+<li><strong>Migration <code>0005_triage.sql</code></strong> (mirror in <code>schema.ts</code>; keep <code>migration-drift</code> green):
+<code>snooze_until INTEGER</code>, <code>reply_later INTEGER DEFAULT 0</code>, <code>reply_later_pos INTEGER</code>,
+<code>set_aside INTEGER DEFAULT 0</code>, <code>set_aside_pos INTEGER</code>, <code>category TEXT</code>;
+<code>idx_messages_snooze</code>, <code>idx_messages_box(category, received_at DESC)</code>.</li>
+<li><code>MailRepo.updateFlags</code> + <code>listMessages</code>: snooze/reply-later/set-aside filters,
+exclude future-snoozed, <strong>due-snooze sweep on list load</strong> (no cron). Extend
+<code>PATCH /api/messages/:id</code> + <code>api.ts</code> to accept the new flags.</li>
+<li>Wire <code>L/S/H</code>, real <strong>Reply Later / Set Aside</strong> stacks, <strong>Focus &amp; Reply</strong> cycling, optimistic UI.</li>
+<li><strong>Done:</strong> snooze returns when due; reply-later/set-aside persist and populate the
+TriageBar stacks; all keyboard-driven.</li>
+</ul>
+<h3>I3 · Organization: Boxes · Views · Bundles · Screener · <em>L</em> · depends on I2</h3>
+<ul>
+<li><strong>Boxes</strong>: deterministic categorization at ingest in <code>MailRepo.ingestWebhookMessage</code>
+(<code>List-Unsubscribe</code>/bulk → feed; receipt keywords/known senders → receipts; else
+priority) → <code>messages.category</code>; store raw signal; list accepts <code>?box=</code>.</li>
+<li><strong>Views</strong>: <strong>migration <code>0006_views_screener_todos.sql</code></strong> (<code>views</code>, <code>screened_senders</code>,
+<code>todos</code>, <code>thread_summaries</code>); <code>GET/POST/PATCH/DELETE /api/views</code> (ACL-scoped via
+<code>Actor</code>); seed defaults (Action required / Awaiting reply / From people); rail Views
+become real + reorderable.</li>
+<li><strong>Bundles</strong>: client-side grouping of the Feed box by sender-domain (no schema).</li>
+<li><strong>Screener</strong>: <code>/api/screener</code> (pending) + <code>POST /api/screener/:addr {decision}</code>;
+banner real; <strong>off by default</strong>, gated behind a setting (delivery-semantics change).</li>
+<li><strong>Done:</strong> mail auto-sorts into Priority/Feed/Receipts; Views save/reorder; newsletters
+collapse into a bundle; new senders can be let in / screened out.</li>
+</ul>
+<h3>I4 · Command palette wired · <em>S–M</em> · depends on I1 (+I2 for triage actions)</h3>
+<ul>
+<li>Action registry → real endpoints; context-aware entries (snooze presets, move-to-View,
+summarize). Complete the shortcut map + <code>?</code> cheatsheet.</li>
+<li><strong>Done:</strong> every triage/navigation action is reachable from ⌘K and by key.</li>
+</ul>
+<h3>I5 · AI layer · <em>L</em> · depends on I2–I3</h3>
+<ul>
+<li>Provider abstraction <code>packages/core/src/server/ai.ts</code> (<code>AI_PROVIDER</code>, key, on-device
+path); <strong>default off</strong>; routes <strong>503 when unset</strong> (mirrors the sending gate).</li>
+<li>Routes (all gated): <code>/api/ai/{summary,smart-replies,todos,search,assistant,organize}</code><ul>
+<li><code>GET/PATCH /api/todos</code>. Cache summaries in <code>thread_summaries</code>; persist <code>todos</code>.</li>
+</ul>
+</li>
+<li>Wire Assistant cards to real endpoints; <strong>Organize</strong> = propose → confirm → apply via
+the I2/I3 triage endpoints. Optional FTS index for semantic search (falls back to <code>q</code>).</li>
+<li><strong>Done:</strong> with a provider, a thread shows summary + smart replies + to-dos, the
+assistant answers, and Organize proposes a reviewable bulk action; with no provider the
+AI surfaces hide cleanly.</li>
+</ul>
+<h3>I6 · Polish, a11y, mobile, tests &amp; docs · <em>M</em> · depends on all</h3>
+<ul>
+<li>Density modes; mobile swipe-triage + bottom tab bar; PWA (<code>install.md §10</code>).</li>
+<li>A11y: focus rings, ARIA roles (list/dialog), contrast both themes, full keyboard
+operability of palette + stacks (target Lighthouse a11y ≥ 95).</li>
+<li>Tests: list filters, triage transitions, snooze sweep, screener gate, <code>migration-drift</code>.</li>
+<li><strong>Docs sweep</strong>: update the files listed in §3 and reconcile the <code>data-model.md</code> ↔
+<code>schema.ts</code> drift.</li>
+<li><strong>Done:</strong> works one-handed on mobile; all new endpoints covered by <code>vitest</code>; docs match code.</li>
+</ul>
+<hr>
+<h2>6. Consolidated data-model &amp; API deltas</h2>
+<p>Authored against the <strong>real 0004</strong> schema. Same SQL applies to Node SQLite and D1.</p>
+<pre><code class="language-sql">-- 0005_triage.sql
+ALTER TABLE messages ADD COLUMN snooze_until    INTEGER;
+ALTER TABLE messages ADD COLUMN reply_later     INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE messages ADD COLUMN reply_later_pos INTEGER;
+ALTER TABLE messages ADD COLUMN set_aside       INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE messages ADD COLUMN set_aside_pos   INTEGER;
+ALTER TABLE messages ADD COLUMN category        TEXT;            -- priority|feed|receipts
+CREATE INDEX IF NOT EXISTS idx_messages_snooze ON messages (snooze_until);
+CREATE INDEX IF NOT EXISTS idx_messages_box    ON messages (category, received_at DESC);
+
+-- 0006_views_screener_todos.sql
+CREATE TABLE IF NOT EXISTS views (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL,
+  filter_json TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS screened_senders (
+  from_addr TEXT PRIMARY KEY, decision TEXT NOT NULL DEFAULT &#39;pending&#39;, decided_at INTEGER);
+CREATE TABLE IF NOT EXISTS todos (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, message_id TEXT NOT NULL,
+  text TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS thread_summaries (
+  thread_id TEXT PRIMARY KEY, summary TEXT NOT NULL, model TEXT, updated_at INTEGER NOT NULL);
+</code></pre>
+<blockquote>
+<p>Mirror <strong>both</strong> files in <code>schema.ts</code> (the <code>migration-drift</code> test fails otherwise).
+ACL: <code>views</code>/<code>todos</code> are user-scoped; <code>screened_senders</code> decisions filter the list —
+route everything through <code>Actor</code> like the shipped endpoints.</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Status</th>
+<th>Phase</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/messages</code></td>
+<td>extend (<code>box</code>,<code>view</code>,<code>reply_later</code>,<code>set_aside</code>; exclude future-snoozed)</td>
+<td>I2/I3</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/messages/:id</code></td>
+<td>extend (<code>snooze_until</code>,<code>reply_later</code>,<code>set_aside</code>)</td>
+<td>I2</td>
+</tr>
+<tr>
+<td>GET/POST/PATCH/DELETE</td>
+<td><code>/api/views</code></td>
+<td>new</td>
+<td>I3</td>
+</tr>
+<tr>
+<td>GET · POST</td>
+<td><code>/api/screener</code> · <code>/api/screener/:addr</code></td>
+<td>new</td>
+<td>I3</td>
+</tr>
+<tr>
+<td>GET/PATCH</td>
+<td><code>/api/todos</code></td>
+<td>new</td>
+<td>I5</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/ai/{summary,smart-replies,todos,search,assistant,organize}</code></td>
+<td>new (gated, 503 when unset)</td>
+<td>I5</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>7. Decisions &amp; open questions</h2>
+<p>Carried from the spec — none block the <strong>mock track</strong>; resolve before the phase noted.</p>
+<ul>
+<li><strong>AI provider default</strong> (before I5): hosted vs on-device. <em>Rec:</em> hosted-first behind an
+explicit opt-in, with a documented local path; never send mail content unless enabled.</li>
+<li><strong>Screener semantics</strong> (before I3): opt-in, reversible, never a hard drop (held mail is
+stored, just hidden).</li>
+<li><strong>Bundles persistence</strong> (I3): start derived; add a <code>bundles</code> table only if users need to
+rename/pin/mute.</li>
+<li><strong>Light as global default vs mail-only</strong> (I1): flip <code>ThemeProvider</code> default, or scope
+light to the mail surface and leave other surfaces as-is?</li>
+<li><strong>Folder rail removal</strong> (I1): Inbox/Starred/Archive become Boxes/Views — confirm the
+mapping (Starred → a seeded View? Archive → a Box filter?).</li>
+</ul>
+<hr>
+<h2>8. New components map (Mock track)</h2>
+<table>
+<thead>
+<tr>
+<th>New file (<code>packages/ui/src/screens/unified/</code>)</th>
+<th>Phase</th>
+<th>Replaces / relates to</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MailLayout.tsx</code> + <code>_fixtures.ts</code></td>
+<td>M0</td>
+<td><code>AppShell</code> + <code>MailApp</code> layout</td>
+</tr>
+<tr>
+<td><code>LeftRail.tsx</code> (<code>RailScreener</code>,<code>RailNav</code>,<code>OrganizeCard</code>)</td>
+<td>M1</td>
+<td>old <code>w-48</code> folder rail</td>
+</tr>
+<tr>
+<td><code>TriageList.tsx</code>,<code>TriageCard.tsx</code>,<code>BundleCard.tsx</code>,<code>TriageBar.tsx</code></td>
+<td>M2</td>
+<td><code>InboxList</code></td>
+</tr>
+<tr>
+<td><code>AssistantPanel.tsx</code>,<code>SummaryCard.tsx</code>,<code>TodoList.tsx</code>,<code>SmartReplies.tsx</code>,<code>AssistantChat.tsx</code></td>
+<td>M3</td>
+<td>(new column)</td>
+</tr>
+<tr>
+<td><code>CommandPalette.tsx</code>,<code>KeyHelp.tsx</code>,<code>lib/useHotkeys.ts</code></td>
+<td>M4</td>
+<td>(new)</td>
+</tr>
+<tr>
+<td>Organize review modal + responsive shell</td>
+<td>M5</td>
+<td>(new)</td>
+</tr>
+</tbody></table>
+<p><code>MessageView</code> (thread + smart-reply chips) and <code>Compose</code> keep their contracts; the
+summary moves into the Assistant panel. <code>Avatar</code>/<code>Logo</code>/<code>Button</code>/<code>cn</code>/<code>sanitize</code> are reused as-is.</p>
+<hr style="border:0;border-top:2px solid #d6e2f5;margin:32px 0"/><h1>MailKite Mail — UI Redesign: <strong>Unified Light</strong></h1>
+<blockquote>
+<p>Research convergence + feature spec + phased implementation plan.
+Companion artifact: the clickable mockup at
+<a href="../apps/web/public/ui-explorations.html"><code>apps/web/public/ui-explorations.html</code></a>
+— open it and select the <strong>☼ E · Unified · Light</strong> tab (<code>…#e</code>).
+The dark twin is tab <strong>D</strong>; the three source explorations are <strong>A/B/C</strong>;
+the client research is the <strong>Research</strong> tab.</p>
+</blockquote>
+<hr>
+<h2>1. Decision</h2>
+<p>We are replacing the current basic three‑pane webmail UI (rail · list · reading)
+with <strong>Unified Light</strong> — a three‑column, keyboard‑first, AI‑assisted inbox in a
+calm light theme. It is the convergence of three explorations (Focus, Flow,
+Copilot) into one layout, then re‑skinned in the Focus palette.</p>
+<p><strong>Why this one:</strong> it keeps the product&#39;s existing bones (the same <code>/api/messages</code>
+contract, the same own‑store) while layering on the triage, organization, AI, and
+speed affordances that every modern client (Gmail, Apple Mail, Superhuman,
+Shortwave, HEY, Notion Mail, Spark, Missive, Proton, Canary) now ships. Light +
+single‑accent reads as &quot;calm and fast&quot; rather than &quot;dense and busy,&quot; which fits a
+self‑hostable product whose differentiator is <em>simplicity</em>, not feature sprawl.</p>
+<hr>
+<h2>2. How we got here (research convergence)</h2>
+<p>Ten clients were surveyed (2025–2026). The recurring, load‑bearing patterns —
+and where each lands in Unified Light:</p>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Seen in</th>
+<th>Lands in Unified Light</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Split / category inbox</td>
+<td>Gmail tabs, Apple Categories, Superhuman Splits</td>
+<td><strong>Boxes</strong> (Priority / Feed / Receipts)</td>
+</tr>
+<tr>
+<td>Saved filtered slices</td>
+<td>Notion Mail Views, Gmail multiple‑inboxes</td>
+<td><strong>Views</strong> (left rail, user‑defined)</td>
+</tr>
+<tr>
+<td>Grouping similar mail</td>
+<td>Shortwave Bundles, Spark Smart Inbox</td>
+<td><strong>Bundles</strong> (Newsletters / Notifications)</td>
+</tr>
+<tr>
+<td>Consent‑based receiving</td>
+<td>HEY Screener</td>
+<td><strong>Screener</strong> banner</td>
+</tr>
+<tr>
+<td>Defer/triage stacks</td>
+<td>HEY Reply‑Later / Set‑Aside, Gmail/Apple Snooze</td>
+<td><strong>Reply Later · Set Aside · Snooze</strong></td>
+</tr>
+<tr>
+<td>Keyboard‑first + ⌘K</td>
+<td>Superhuman, Notion Mail</td>
+<td><strong>Command palette + shortcuts</strong></td>
+</tr>
+<tr>
+<td>Thread summary at top</td>
+<td>Apple Intelligence, Gmail Gemini, Shortwave</td>
+<td><strong>AI summary</strong> (assistant panel)</td>
+</tr>
+<tr>
+<td>Smart‑reply chips</td>
+<td>Gmail, Apple, Spark</td>
+<td><strong>Smart replies</strong></td>
+</tr>
+<tr>
+<td>To‑dos from email</td>
+<td>Shortwave (press T)</td>
+<td><strong>Extracted to‑dos</strong></td>
+</tr>
+<tr>
+<td>Assistant beside thread</td>
+<td>Shortwave, Canary Copilot, Missive</td>
+<td><strong>Assistant panel</strong> (right column)</td>
+</tr>
+<tr>
+<td>Natural‑language search</td>
+<td>Shortwave, Canary, Gmail</td>
+<td><strong>Ask‑anything header</strong></td>
+</tr>
+<tr>
+<td>On‑device AI / privacy</td>
+<td>Proton Scribe, Canary</td>
+<td><strong><code>on-device</code> posture</strong> (provider‑pluggable)</td>
+</tr>
+<tr>
+<td>Auth visibility</td>
+<td>(MailKite already has this)</td>
+<td><strong>SPF/DKIM/DMARC chips</strong> (shipped)</td>
+</tr>
+</tbody></table>
+<p>Five explorations were built (A Focus · B Flow · C Copilot · D Unified · E
+Unified Light). <strong>E won</strong> because it is the only one that is simultaneously
+calm (Focus), triage‑complete (Flow), and AI‑native (Copilot).</p>
+<hr>
+<h2>3. The design at a glance</h2>
+<pre><code>┌───────────────────────────────────────────────────────────────────────────┐
+│  ✦ Ask anything — &quot;what did Sarah say about the deadline?&quot;        ⌘K   (G) │  ← NL search / command header
+├───────────────┬───────────────────────────────────────────┬───────────────┤
+│  SCREENER      │  Priority            J K move · E archive  │  ✦ Assistant  │
+│  2 new senders │ ┌───────────────────────────────────────┐ │  on-device    │
+│  [Let in][out] │ │ SC Sarah Chen              9:02        │ │ ┌───────────┐ │
+│                │ │    Q3 launch timeline — sign-off       │ │ │ Summary   │ │
+│  FLOW          │ │    ✦ Needs your OK on July 14          │ │ └───────────┘ │
+│  📥 Priority 5 │ │   [↩ Reply later L][📎 Set aside S]…   │ │ ┌───────────┐ │
+│  📰 The Feed   │ └───────────────────────────────────────┘ │ │ ✦ To-dos  │ │
+│  🧾 Receipts   │   M  Marco Reyes   VIP                     │ │ └───────────┘ │
+│  BUNDLES       │   A  Aisha Khan                            │ │ ┌───────────┐ │
+│  ✉️ Newsletters│   ✉️ Newsletters · 9 bundled  [Open]       │ │ │ Smart rep │ │
+│  🔔 Notifs     │                                            │ │ └───────────┘ │
+│  VIEWS         │                                            │ │  chat …       │
+│  ⚡ Action req │                                            │ │               │
+│  ⏳ Awaiting   │ ↩ Reply Later (3)  📎 Set Aside (2)        │ │ [Ask/instruct]│
+│  + New view    │            Inbox Zero in 3  [Focus&amp;Reply→] │ │               │
+│  ✦ Organize    │                                            │ │               │
+└───────────────┴───────────────────────────────────────────┴───────────────┘
+   COLUMN 1: Flow boxes + Views        COLUMN 2: triage list      COLUMN 3: Assistant
+</code></pre>
+<p><strong>Theme tokens (Focus / light):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Token</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>App surface</td>
+<td><code>#f7f8fa</code></td>
+</tr>
+<tr>
+<td>Card / panel</td>
+<td><code>#ffffff</code></td>
+</tr>
+<tr>
+<td>Border</td>
+<td><code>slate-200</code></td>
+</tr>
+<tr>
+<td>Primary text</td>
+<td><code>slate-900</code></td>
+</tr>
+<tr>
+<td>Muted text</td>
+<td><code>slate-500</code></td>
+</tr>
+<tr>
+<td><strong>Accent (single)</strong></td>
+<td><code>indigo-600</code> (hover <code>indigo-500</code>)</td>
+</tr>
+<tr>
+<td>Triage warmth</td>
+<td><code>amber-400</code> (Reply Later, Screener, Priority badge)</td>
+</tr>
+<tr>
+<td>Positive</td>
+<td><code>emerald-500</code> (Let in)</td>
+</tr>
+<tr>
+<td>Avatars</td>
+<td>per‑sender hashed hue</td>
+</tr>
+<tr>
+<td>Radius</td>
+<td><code>xl</code> (12px) cards, <code>lg</code> (8px) controls</td>
+</tr>
+<tr>
+<td>Font</td>
+<td>system UI stack</td>
+</tr>
+</tbody></table>
+<p>Dark mode = the <strong>D</strong> palette; the theme switch already exists
+(<code>packages/ui/src/theme/ThemeProvider.tsx</code>), so ship light + dark from one token set.</p>
+<hr>
+<h2>4. Feature catalog — what each entails</h2>
+<p>Each feature lists: <strong>What</strong> · <strong>Behavior</strong> · <strong>Data</strong> · <strong>API</strong> · <strong>Inspiration</strong> ·
+<strong>MailKite fit</strong>. &quot;Shipped&quot; = already in the codebase today.</p>
+<h3>4.1 Three‑column app shell + light theme</h3>
+<ul>
+<li><strong>What:</strong> Header (NL search) + left rail (Flow/Views) + center list + right Assistant.</li>
+<li><strong>Behavior:</strong> Columns are independently scrollable; Assistant collapsible; below
+<code>lg</code> the layout reflows to a single column with a bottom tab bar (mobile).</li>
+<li><strong>Data:</strong> none.</li>
+<li><strong>API:</strong> none.</li>
+<li><strong>Inspiration:</strong> Shortwave / Copilot three‑pane.</li>
+<li><strong>MailKite fit:</strong> Replaces <code>AppShell.tsx</code> + <code>MailApp.tsx</code> layout. Reuses existing
+<code>ThemeProvider</code>, <code>Avatar</code>, <code>Logo</code>.</li>
+</ul>
+<h3>4.2 Boxes — Priority / Feed / Receipts</h3>
+<ul>
+<li><strong>What:</strong> Three top‑level &quot;boxes&quot; that split incoming mail by intent.</li>
+<li><strong>Behavior:</strong> Priority = mail from real people that needs you; Feed =
+newsletters/social/updates; Receipts = transactional/order/confirmation mail.</li>
+<li><strong>Data:</strong> add <code>messages.category TEXT</code> (<code>&#39;priority&#39; | &#39;feed&#39; | &#39;receipts&#39;</code>),
+computed at ingest by heuristics: <code>List-Unsubscribe</code>/bulk headers → feed; receipt
+keywords + known transactional senders → receipts; otherwise priority. Store the
+raw signal so it can be re‑derived if rules change.</li>
+<li><strong>API:</strong> <code>GET /api/messages?box=priority|feed|receipts</code> (extends today&#39;s <code>folder</code>).</li>
+<li><strong>Inspiration:</strong> HEY Imbox/Feed/Paper Trail; Apple Categories.</li>
+<li><strong>MailKite fit:</strong> Ingest hook lives in <code>MailRepo.ingestWebhookMessage</code>
+(<code>packages/core/src/server/repo.ts</code>). Heuristics are deterministic (no AI needed).</li>
+</ul>
+<h3>4.3 Views — saved filtered slices</h3>
+<ul>
+<li><strong>What:</strong> User‑defined saved searches that reshape the list (e.g. &quot;Awaiting reply&quot;).</li>
+<li><strong>Behavior:</strong> A View is a named, ordered filter (box + query + flags). Selecting it
+swaps the center list. Seed defaults: <em>Action required</em> (unread + priority),
+<em>Awaiting reply</em> (sent, no inbound since), <em>From people</em> (priority, non‑bulk).</li>
+<li><strong>Data:</strong> new table <code>views(id, user_id, name, filter_json, position, created_at)</code>.</li>
+<li><strong>API:</strong> <code>GET/POST/PATCH/DELETE /api/views</code>; list filtering accepts <code>view=&lt;id&gt;</code>.</li>
+<li><strong>Inspiration:</strong> Notion Mail Views; Gmail multiple inboxes.</li>
+<li><strong>MailKite fit:</strong> Per‑user, ACL‑scoped via the existing <code>Actor</code>.</li>
+</ul>
+<h3>4.4 Bundles</h3>
+<ul>
+<li><strong>What:</strong> Collapse many similar low‑priority messages into one expandable row.</li>
+<li><strong>Behavior:</strong> Newsletters / Notifications collapse to a single card with sender
+faces + count; &quot;Open&quot; expands, &quot;Mark all read&quot; / bulk‑archive act on the group.</li>
+<li><strong>Data:</strong> derived (group Feed by sender‑domain or category) — <strong>no schema change</strong>
+for v1; can promote to a <code>bundles</code> table later if users rename/pin them.</li>
+<li><strong>API:</strong> reuse list endpoint; group client‑side, or add <code>groupBy=sender</code> server‑side.</li>
+<li><strong>Inspiration:</strong> Shortwave Bundles; Spark Smart Inbox.</li>
+<li><strong>MailKite fit:</strong> Pure presentation initially — lowest‑risk way to cut clutter.</li>
+</ul>
+<h3>4.5 Screener</h3>
+<ul>
+<li><strong>What:</strong> First‑time senders are held until you allow or block them.</li>
+<li><strong>Behavior:</strong> Unknown <code>from_addr</code> on ingest → <code>pending</code>, kept out of the boxes and
+surfaced in a Screener banner. &quot;Let in&quot; → future mail flows + backfills held mail;
+&quot;Screen out&quot; → silently archived/dropped.</li>
+<li><strong>Data:</strong> new table <code>screened_senders(from_addr, decision, decided_at)</code> where
+<code>decision ∈ {pending, allowed, blocked}</code>; messages from <code>pending</code>/<code>blocked</code> get a
+<code>screen_state</code> so the list can exclude them.</li>
+<li><strong>API:</strong> <code>GET /api/screener</code> (pending list), <code>POST /api/screener/:addr {decision}</code>.</li>
+<li><strong>Inspiration:</strong> HEY Screener.</li>
+<li><strong>MailKite fit:</strong> Opt‑in (off by default) — it changes delivery semantics, so gate
+it behind a setting like the existing <code>ADDRESS_MODE</code>.</li>
+</ul>
+<h3>4.6 Triage actions — Archive · Snooze · Reply Later · Set Aside</h3>
+<ul>
+<li><strong>What:</strong> The four verbs that move a message out of the way.</li>
+<li><strong>Behavior:</strong><ul>
+<li><strong>Archive</strong> (<code>E</code>) — shipped (<code>archived</code> flag).</li>
+<li><strong>Snooze</strong> (<code>H</code>) — hide until a chosen time, then resurface at top of its box.</li>
+<li><strong>Reply Later</strong> (<code>L</code>) — push to a bottom <strong>Reply Later</strong> stack; &quot;Focus &amp; Reply&quot;
+opens them one after another.</li>
+<li><strong>Set Aside</strong> (<code>S</code>) — pin reference mail to a bottom <strong>Set Aside</strong> stack.</li>
+</ul>
+</li>
+<li><strong>Data:</strong> extend <code>messages</code> with <code>snooze_until INTEGER NULL</code>,
+<code>reply_later INTEGER NOT NULL DEFAULT 0</code>, <code>set_aside INTEGER NOT NULL DEFAULT 0</code>,
+plus <code>reply_later_pos</code>/<code>set_aside_pos</code> for stack ordering.</li>
+<li><strong>API:</strong> extend <code>PATCH /api/messages/:id</code> (today handles <code>unread/starred/archived</code>)
+to accept the new flags; list filters: <code>box</code>/<code>view</code> exclude snoozed‑in‑future,
+dedicated <code>reply_later</code> / <code>set_aside</code> queues. A due‑snooze sweep (on list load, set
+<code>snooze_until</code> ≤ now back to visible) avoids needing a cron.</li>
+<li><strong>Inspiration:</strong> HEY (Reply Later / Set Aside); Gmail/Apple (Snooze).</li>
+<li><strong>MailKite fit:</strong> Mirrors the shipped flag plumbing in <code>MailRepo.updateFlags</code>.</li>
+</ul>
+<h3>4.7 Keyboard‑first + Command palette (⌘K)</h3>
+<ul>
+<li><strong>What:</strong> Every action reachable by keyboard; ⌘K opens a fuzzy action/search palette.</li>
+<li><strong>Behavior:</strong> <code>J/K</code> move, <code>E</code> archive, <code>R</code> reply, <code>L/S/H</code> triage, <code>?</code> shows help.
+⌘K lists context actions (&quot;Snooze until tomorrow 9am&quot;, &quot;Move to View…&quot;, &quot;Summarize
+thread&quot;) and falls through to search. Optimistic UI: apply visually before the
+server confirms (&lt;100 ms feel).</li>
+<li><strong>Data:</strong> none.</li>
+<li><strong>API:</strong> none (composes existing endpoints).</li>
+<li><strong>Inspiration:</strong> Superhuman; Notion Mail.</li>
+<li><strong>MailKite fit:</strong> New <code>useHotkeys</code> hook + <code>&lt;CommandPalette/&gt;</code> in <code>packages/ui</code>.</li>
+</ul>
+<h3>4.8 Natural‑language search (Ask‑anything header)</h3>
+<ul>
+<li><strong>What:</strong> The header bar accepts plain‑English queries.</li>
+<li><strong>Behavior:</strong> Two modes — literal keyword search (works with no AI) and, when an AI
+provider is configured, semantic answers (&quot;what did Sarah say about the deadline?&quot;).</li>
+<li><strong>Data:</strong> v1 uses existing <code>q</code> keyword search; semantic mode needs an index
+(FTS5 on Node / D1 FTS) — optional, Phase 4.</li>
+<li><strong>API:</strong> <code>GET /api/messages?q=</code> (shipped) → <code>POST /api/ai/search</code> (semantic).</li>
+<li><strong>Inspiration:</strong> Shortwave / Canary NL search.</li>
+<li><strong>MailKite fit:</strong> Degrades gracefully to keyword when AI is off.</li>
+</ul>
+<h3>4.9 AI summary</h3>
+<ul>
+<li><strong>What:</strong> One‑to‑three line summary of a message/thread, shown in the Assistant panel.</li>
+<li><strong>Behavior:</strong> Generated on open; cached; regenerates when the thread grows.</li>
+<li><strong>Data:</strong> cache on <code>messages.summary TEXT NULL</code> (or <code>thread_summaries</code> table).</li>
+<li><strong>API:</strong> <code>POST /api/ai/summary {threadId|messageId}</code>.</li>
+<li><strong>Inspiration:</strong> Apple Intelligence, Gemini, Shortwave.</li>
+<li><strong>MailKite fit:</strong> Gated like sending — invisible until an AI provider is set.</li>
+</ul>
+<h3>4.10 Smart replies</h3>
+<ul>
+<li><strong>What:</strong> 2–3 tappable suggested replies + a &quot;Draft full reply…&quot; affordance.</li>
+<li><strong>Behavior:</strong> Chips prefill the composer; &quot;in my voice&quot; can fine‑tune on sent mail.</li>
+<li><strong>Data:</strong> none persisted (generated on demand).</li>
+<li><strong>API:</strong> <code>POST /api/ai/smart-replies {messageId}</code> → <code>{replies: string[]}</code>.</li>
+<li><strong>Inspiration:</strong> Gmail, Apple, Spark.</li>
+<li><strong>MailKite fit:</strong> Feeds the existing <code>Compose.tsx</code> / <code>POST /api/send</code>.</li>
+</ul>
+<h3>4.11 Extracted to‑dos</h3>
+<ul>
+<li><strong>What:</strong> Action items pulled from a thread, shown as checkboxes in the Assistant.</li>
+<li><strong>Behavior:</strong> Press <code>T</code> (or auto on open) to extract; checking one can later sync out.</li>
+<li><strong>Data:</strong> new table <code>todos(id, user_id, message_id, text, done, created_at)</code>.</li>
+<li><strong>API:</strong> <code>POST /api/ai/todos {messageId}</code>, <code>GET/PATCH /api/todos</code>.</li>
+<li><strong>Inspiration:</strong> Shortwave AI todos.</li>
+<li><strong>MailKite fit:</strong> Self‑contained; no external task system required for v1.</li>
+</ul>
+<h3>4.12 Assistant panel + &quot;Organize my inbox&quot;</h3>
+<ul>
+<li><strong>What:</strong> A persistent right‑column chat with full thread/account context, plus a
+one‑click bulk‑triage suggestion (&quot;Archive 23 low‑priority · draft 3 replies&quot;).</li>
+<li><strong>Behavior:</strong> Chat can summarize, search, check a (future) calendar, and propose
+bulk actions for review — nothing applies without confirmation.</li>
+<li><strong>Data:</strong> ephemeral conversation; bulk actions reuse triage endpoints.</li>
+<li><strong>API:</strong> <code>POST /api/ai/assistant {message, context}</code>, <code>POST /api/ai/organize</code> →
+returns a <em>proposed</em> action list the UI confirms.</li>
+<li><strong>Inspiration:</strong> Shortwave assistant; Missive AI Rules; Canary Copilot.</li>
+<li><strong>MailKite fit:</strong> Provider‑pluggable; &quot;review before apply&quot; matches the product&#39;s
+trust posture.</li>
+</ul>
+<h3>4.13 Already shipped (keep)</h3>
+<ul>
+<li><strong>Trust chips</strong> SPF/DKIM/DMARC — in schema + <code>MessageView.tsx</code>.</li>
+<li><strong>Flags</strong> unread / starred / archived — <code>MailRepo.updateFlags</code>.</li>
+<li><strong>Send‑as identities</strong> — <code>GET /api/identities</code>, <code>POST /api/send</code>.</li>
+<li><strong>Theme switch</strong> light/dark — <code>ThemeProvider</code>.</li>
+<li><strong>ACL scoping</strong> — every list/mutate already passes through <code>Actor</code>.</li>
+</ul>
+<hr>
+<h2>5. Consolidated data‑model changes</h2>
+<p>New migrations, additive over <code>0004_acl.sql</code> (mirror in
+<code>packages/core/src/server/schema.ts</code> — <code>apps/web/test/migration-drift.test.ts</code>
+enforces parity):</p>
+<pre><code class="language-sql">-- 0005_triage.sql
+ALTER TABLE messages ADD COLUMN snooze_until    INTEGER;          -- NULL = not snoozed
+ALTER TABLE messages ADD COLUMN reply_later      INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE messages ADD COLUMN reply_later_pos  INTEGER;
+ALTER TABLE messages ADD COLUMN set_aside        INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE messages ADD COLUMN set_aside_pos    INTEGER;
+ALTER TABLE messages ADD COLUMN category         TEXT;            -- priority|feed|receipts
+CREATE INDEX IF NOT EXISTS idx_messages_snooze ON messages (snooze_until);
+CREATE INDEX IF NOT EXISTS idx_messages_box    ON messages (category, received_at DESC);
+
+-- 0006_views_screener_todos.sql
+CREATE TABLE IF NOT EXISTS views (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL,
+  filter_json TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS screened_senders (
+  from_addr TEXT PRIMARY KEY, decision TEXT NOT NULL DEFAULT &#39;pending&#39;, decided_at INTEGER);
+CREATE TABLE IF NOT EXISTS todos (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, message_id TEXT NOT NULL,
+  text TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS thread_summaries (
+  thread_id TEXT PRIMARY KEY, summary TEXT NOT NULL, model TEXT, updated_at INTEGER NOT NULL);
+</code></pre>
+<blockquote>
+<p>Same files apply to <strong>both</strong> Node SQLite and Workers D1 (per <code>install.md</code> §11).</p>
+</blockquote>
+<hr>
+<h2>6. Consolidated API surface</h2>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Status</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/messages</code></td>
+<td>extend</td>
+<td>add <code>box</code>, <code>view</code>, <code>reply_later</code>, <code>set_aside</code>; exclude future‑snoozed</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/messages/:id</code></td>
+<td>shipped</td>
+<td>—</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/messages/:id</code></td>
+<td>extend</td>
+<td>accept <code>snooze_until</code>, <code>reply_later</code>, <code>set_aside</code></td>
+</tr>
+<tr>
+<td>GET/POST/PATCH/DELETE</td>
+<td><code>/api/views</code></td>
+<td>new</td>
+<td>per‑user saved Views</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/screener</code></td>
+<td>new</td>
+<td>pending senders</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/screener/:addr</code></td>
+<td>new</td>
+<td><code>{decision}</code></td>
+</tr>
+<tr>
+<td>GET/PATCH</td>
+<td><code>/api/todos</code></td>
+<td>new</td>
+<td>list/toggle</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/ai/summary</code></td>
+<td>new</td>
+<td>gated on provider</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/ai/smart-replies</code></td>
+<td>new</td>
+<td>gated</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/ai/todos</code></td>
+<td>new</td>
+<td>gated</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/ai/search</code></td>
+<td>new</td>
+<td>semantic; falls back to <code>q</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/ai/assistant</code></td>
+<td>new</td>
+<td>chat</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/ai/organize</code></td>
+<td>new</td>
+<td>returns proposed actions</td>
+</tr>
+</tbody></table>
+<p>All new routes follow the existing pattern in <code>apps/web/src/app.ts</code>
+(<code>requireAuth</code> + <code>actorOf(c)</code> for scoping). AI routes resolve a provider via
+<code>resolve(&#39;AI_PROVIDER&#39;, …)</code> and 503 when unset (mirrors the <code>sending</code> gate).</p>
+<hr>
+<h2>7. Phased implementation plan</h2>
+<p>Ordered by dependency. Each phase is independently shippable and demoable against
+the mockup tab <strong>☼ E</strong>. Effort: <strong>S</strong> ≈ 1–2 days, <strong>M</strong> ≈ 3–5, <strong>L</strong> ≈ 1–2 weeks.</p>
+<h3>Phase 0 — Design system &amp; shell  · <strong>M</strong> · no backend</h3>
+<ul>
+<li>Add light <strong>Focus</strong> + dark tokens to <code>packages/ui/src/theme</code> (extend <code>presets.ts</code>).</li>
+<li>Build the three‑column <code>AppShell</code> (header · left rail · list · Assistant), responsive
+collapse below <code>lg</code>. Static/placeholder data is fine.</li>
+<li>Keyboard‑nav scaffold: <code>useHotkeys</code> with <code>J/K</code> select, <code>E</code> archive (wired to the
+existing flag call), <code>?</code> help overlay.</li>
+<li><strong>Touches:</strong> <code>packages/ui/src/screens/{AppShell,MailApp,InboxList,MessageView}.tsx</code>,
+new <code>components/{CommandPalette,KeyHint,TriageBar}.tsx</code>.</li>
+<li><strong>Done when:</strong> the app renders the E layout, theme toggle works, J/K/E function,
+and it matches <code>ui-explorations.html#e</code> visually.</li>
+</ul>
+<h3>Phase 1 — Triage core  · <strong>M</strong> · depends on 0</h3>
+<ul>
+<li>Migration <code>0005_triage.sql</code> + <code>schema.ts</code> parity; extend <code>MailRepo.updateFlags</code>
+and <code>listMessages</code> (snooze/reply‑later/set‑aside filters + due‑snooze sweep).</li>
+<li>Extend <code>PATCH /api/messages/:id</code>; add the bottom <strong>Reply Later / Set Aside</strong> stacks
+and &quot;Focus &amp; Reply&quot; mode; per‑card <code>L/S/H</code> actions; optimistic updates.</li>
+<li><strong>Done when:</strong> a message can be snoozed (and returns when due), sent to Reply Later
+(appears in the stack, cycled by Focus &amp; Reply), and Set Aside — all keyboard‑driven.</li>
+</ul>
+<h3>Phase 2 — Organization: Boxes · Views · Bundles · Screener  · <strong>L</strong> · depends on 1</h3>
+<ul>
+<li>Ingest categorization → <code>messages.category</code> (heuristics in <code>ingestWebhookMessage</code>);
+Boxes filter on it.</li>
+<li><code>views</code> table + <code>/api/views</code> CRUD + left‑rail Views with seeded defaults.</li>
+<li>Client‑side Bundles grouping for the Feed box.</li>
+<li><code>screened_senders</code> + <code>/api/screener</code> + banner; gate behind a setting.</li>
+<li><strong>Done when:</strong> mail auto‑sorts into Priority/Feed/Receipts, users can save/reorder
+Views, newsletters collapse into a bundle, and new senders can be screened.</li>
+</ul>
+<h3>Phase 3 — Command palette &amp; full keyboard  · <strong>S–M</strong> · depends on 0</h3>
+<ul>
+<li><code>&lt;CommandPalette/&gt;</code> (⌘K) with an action registry + fuzzy filter; route actions to
+existing endpoints; context‑aware entries (snooze presets, move‑to‑View, summarize).</li>
+<li>Complete the shortcut map + <code>?</code> cheatsheet.</li>
+<li><strong>Done when:</strong> every triage/navigation action is reachable from ⌘K and by key.</li>
+</ul>
+<h3>Phase 4 — AI layer  · <strong>L</strong> · depends on 1–2</h3>
+<ul>
+<li>Provider abstraction <code>packages/core/src/server/ai.ts</code> (<code>AI_PROVIDER</code>, key, optional
+on‑device/local). Privacy note: default off; &quot;on‑device&quot; is the headline option to
+match the product&#39;s posture.</li>
+<li>Endpoints: <code>summary</code>, <code>smart-replies</code>, <code>todos</code>, <code>search</code>, <code>assistant</code>, <code>organize</code>
+(all gated, 503 when unset). Cache summaries (<code>thread_summaries</code>); <code>todos</code> table.</li>
+<li>Assistant panel UI: summary card, smart‑reply chips → composer, to‑do checkboxes,
+chat, and &quot;Organize my inbox&quot; (propose → confirm → apply via triage endpoints).</li>
+<li>Optional: FTS index for semantic search.</li>
+<li><strong>Done when:</strong> with a provider configured, opening a thread shows a summary +
+smart replies + to‑dos, the assistant answers questions, and Organize proposes a
+reviewable bulk action; with no provider, the UI hides AI cleanly.</li>
+</ul>
+<h3>Phase 5 — Polish, mobile &amp; a11y  · <strong>M</strong> · depends on all</h3>
+<ul>
+<li>Density modes (compact/comfortable); mobile reflow (single column + swipe triage +
+bottom tab bar); PWA install (per <code>install.md</code> §10).</li>
+<li>A11y: focus rings, ARIA roles for list/dialog, contrast in both themes, full
+keyboard operability of the palette and stacks.</li>
+<li>Tests: extend <code>apps/web/test</code> (list filters, triage transitions, snooze sweep,
+screener gate) and <code>migration-drift</code>.</li>
+<li><strong>Done when:</strong> Lighthouse a11y ≥ 95, works one‑handed on mobile, all new endpoints
+covered by <code>vitest</code>.</li>
+</ul>
+<pre><code>Phase 0 ─┬─ Phase 1 ── Phase 2 ──┐
+         └─ Phase 3              ├─ Phase 5
+                     Phase 4 ────┘
+</code></pre>
+<hr>
+<h2>8. Decisions &amp; open questions</h2>
+<ul>
+<li><strong>AI provider.</strong> Keep contracts provider‑agnostic behind <code>AI_PROVIDER</code>. Decide the
+default: a hosted model (simplest, best quality) vs. an on‑device/local model
+(matches Proton/Canary privacy framing shown in the mock&#39;s <code>on-device</code> badge).
+<em>Recommendation:</em> ship hosted‑first behind an explicit opt‑in, with a documented
+local‑model path — and never send mail content to any provider unless enabled.</li>
+<li><strong>Screener semantics.</strong> Holding unknown senders changes delivery; make it opt‑in and
+reversible (held mail is stored, just hidden), never a hard drop.</li>
+<li><strong>Bundles persistence.</strong> Start derived (no schema). Only add a <code>bundles</code> table if
+users need to rename/pin/mute them.</li>
+<li><strong>Categorization accuracy.</strong> Heuristics first (headers + keyword lists); revisit an
+AI categorizer only if the rules misfile too often. Always store the raw signal.</li>
+<li><strong>Snooze without cron.</strong> The on‑read sweep is enough for self‑host; Workers can add
+a scheduled trigger later if needed.</li>
+</ul>
+<hr>
+<h2>9. Current → target component map</h2>
+<table>
+<thead>
+<tr>
+<th>Today (<code>packages/ui/src/screens</code>)</th>
+<th>Becomes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>AppShell.tsx</code> (rail + content)</td>
+<td>3‑column shell (header · Flow/Views rail · list · Assistant)</td>
+</tr>
+<tr>
+<td><code>InboxList.tsx</code> (flat list)</td>
+<td>Triage card list + bundles + bottom stacks</td>
+</tr>
+<tr>
+<td><code>MessageView.tsx</code> (reading pane)</td>
+<td>Thread + smart‑reply chips (summary moves to Assistant)</td>
+</tr>
+<tr>
+<td><code>Compose.tsx</code></td>
+<td>unchanged contract; receives smart‑reply / draft prefills</td>
+</tr>
+<tr>
+<td>—</td>
+<td>new <code>CommandPalette</code>, <code>AssistantPanel</code>, <code>TriageBar</code>, <code>Screener</code>, <code>ViewsRail</code></td>
+</tr>
+</tbody></table>
+<p>Reference implementation for all visuals: <strong><code>apps/web/public/ui-explorations.html</code></strong>
+(tab <strong>☼ E</strong>) — it is the source of truth for spacing, color, and copy.</p>
+</div>
+<div class="foot">MailKite Mail · design docs · also in the repo under <code>docs/ui-redesign-plan.md</code> and <code>docs/ui-redesign.md</code>.</div>
+</div></div></body></html>

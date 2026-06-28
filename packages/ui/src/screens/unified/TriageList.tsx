@@ -9,6 +9,7 @@ export function TriageList({
   loading,
   error,
   cursor,
+  selectedId,
   title,
   subtitle,
   onOpen,
@@ -20,6 +21,7 @@ export function TriageList({
   loading: boolean
   error: string | null
   cursor: number
+  selectedId?: string | null
   title: string
   subtitle: string
   onOpen: (m: MessageRow) => void
@@ -51,7 +53,7 @@ export function TriageList({
             <TriageCard
               key={m.id}
               m={m}
-              active={i === cursor}
+              active={selectedId ? selectedId === m.id : i === cursor}
               onOpen={() => onOpen(m)}
               onStar={() => onStar(m)}
               onLater={() => onLater(m)}
