@@ -28,7 +28,7 @@ export function LeftRail({
   ]
 
   return (
-    <div className="flex flex-col overflow-y-auto border-r border-slate-200 bg-white p-3">
+    <div className="flex h-full flex-col overflow-y-auto bg-white p-3">
       {canCompose && (
         <button
           onClick={onCompose}

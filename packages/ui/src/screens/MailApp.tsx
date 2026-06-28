@@ -13,6 +13,7 @@ import { LeftRail } from './unified/LeftRail'
 import { TriageList } from './unified/TriageList'
 import { ReadingPane } from './unified/ReadingPane'
 import { AssistantPanel } from './unified/AssistantPanel'
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../components/resizable'
 
 const FOLDER_META: Record<Folder, { title: string; subtitle: string }> = {
   inbox: { title: 'Priority', subtitle: 'Mail from real people that needs you' },
@@ -173,41 +174,66 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
       ) : view === 'profile' && user ? (
         <div className="min-h-0 flex-1 overflow-y-auto"><Profile user={user} onLogout={onLogout ?? (() => {})} /></div>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-[236px_minmax(0,1fr)_322px]">
-          <LeftRail
-            folder={folder}
-            onFolder={(f) => { setSelected(null); setFolder(f) }}
-            inboxCount={folder === 'inbox' ? messages.filter((m) => m.unread).length : undefined}
-            canCompose={canSend}
-            onCompose={() => setDraft({ to: '', subject: '' })}
-          />
-          {selected ? (
-            <ReadingPane
-              message={selected}
-              canSend={canSend}
-              onBack={() => setSelected(null)}
-              onReply={(m) => reply(m)}
-              onStar={toggleStar}
-              onArchive={archive}
-              onLater={dismiss}
-              onAside={dismiss}
-            />
-          ) : (
-            <TriageList
-              messages={messages}
-              loading={loading}
-              error={error}
-              cursor={cursor}
-              title={query ? `Search · “${query}”` : meta.title}
-              subtitle={query ? `${messages.length} result${messages.length === 1 ? '' : 's'}` : meta.subtitle}
-              onOpen={open}
-              onStar={toggleStar}
-              onLater={dismiss}
-              onAside={dismiss}
-            />
-          )}
-          <AssistantPanel message={selected} canSend={canSend} onSmartReply={(t) => selected && reply(selected, t)} />
-        </div>
+        <>
+          <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+            <ResizablePanel id="rail" defaultSize="19%" minSize="14%" maxSize="26%">
+              <LeftRail
+                folder={folder}
+                onFolder={(f) => { setSelected(null); setFolder(f) }}
+                inboxCount={folder === 'inbox' ? messages.filter((m) => m.unread).length : undefined}
+                canCompose={canSend}
+                onCompose={() => setDraft({ to: '', subject: '' })}
+              />
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel id="center" defaultSize="52%" minSize="32%">
+              {selected ? (
+                <ReadingPane
+                  message={selected}
+                  canSend={canSend}
+                  onBack={() => setSelected(null)}
+                  onReply={(m) => reply(m)}
+                  onStar={toggleStar}
+                  onArchive={archive}
+                  onLater={dismiss}
+                  onAside={dismiss}
+                />
+              ) : (
+                <TriageList
+                  messages={messages}
+                  loading={loading}
+                  error={error}
+                  cursor={cursor}
+                  title={query ? `Search · “${query}”` : meta.title}
+                  subtitle={query ? `${messages.length} result${messages.length === 1 ? '' : 's'}` : meta.subtitle}
+                  onOpen={open}
+                  onStar={toggleStar}
+                  onLater={dismiss}
+                  onAside={dismiss}
+                />
+              )}
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel id="assistant" defaultSize="29%" minSize="18%" maxSize="42%">
+              <AssistantPanel message={selected} canSend={canSend} onSmartReply={(t) => selected && reply(selected, t)} />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+
+          {/* Fixed triage footer — spans the window, never scrolls. */}
+          <footer className="flex shrink-0 items-center gap-2 border-t border-slate-200 bg-white px-5 py-2 text-[11px]">
+            <span className="rounded-lg bg-amber-50 px-2.5 py-1.5 font-semibold text-amber-700 ring-1 ring-amber-200">↩ Reply Later</span>
+            <span className="rounded-lg bg-sky-50 px-2.5 py-1.5 text-sky-700 ring-1 ring-sky-200">📎 Set Aside</span>
+            <span className="ml-auto text-slate-400">
+              {messages.length === 0 ? 'Inbox Zero ✦' : <>Inbox Zero in <b className="text-indigo-600">{messages.length}</b></>}
+            </span>
+            <button
+              onClick={() => messages[0] && open(messages[0])}
+              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-indigo-500"
+            >
+              Focus &amp; Reply →
+            </button>
+          </footer>
+        </>
       )}
 
       {draft && <Compose draft={draft} onClose={() => setDraft(null)} />}

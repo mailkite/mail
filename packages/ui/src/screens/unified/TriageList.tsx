@@ -28,8 +28,8 @@ export function TriageList({
   onAside: (m: MessageRow) => void
 }) {
   return (
-    <div className="flex min-w-0 flex-col bg-[#f7f8fa]">
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white/60 px-5 py-2.5">
+    <div className="flex h-full min-w-0 flex-col bg-[#f7f8fa]">
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white/60 px-5 py-2.5">
         <div>
           <h3 className="text-[14px] font-semibold text-slate-900">{title}</h3>
           <p className="text-[11px] text-slate-500">{subtitle}</p>
@@ -59,14 +59,6 @@ export function TriageList({
             />
           ))
         )}
-      </div>
-
-      <div className="flex items-center gap-2 border-t border-slate-200 bg-white/60 px-5 py-2.5 text-[11px]">
-        <span className="rounded-lg bg-amber-50 px-2.5 py-1.5 font-semibold text-amber-700 ring-1 ring-amber-200">↩ Reply Later</span>
-        <span className="rounded-lg bg-sky-50 px-2.5 py-1.5 text-sky-700 ring-1 ring-sky-200">📎 Set Aside</span>
-        <span className="ml-auto text-slate-400">
-          {messages.length === 0 ? 'Inbox Zero ✦' : <>Inbox Zero in <b className="text-indigo-600">{messages.length}</b></>}
-        </span>
       </div>
     </div>
   )

@@ -16,6 +16,7 @@
     "clsx": "^2.1.1",
     "dompurify": "^3.2.3",
     "lucide-react": "^0.468.0",
+    "react-resizable-panels": "^4.11.2",
     "tailwind-merge": "^2.5.5"
   },
   "peerDependencies": {

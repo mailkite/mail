@@ -30,8 +30,8 @@ export function ReadingPane({
   )
 
   return (
-    <article className="flex min-w-0 flex-col bg-[#f7f8fa]">
-      <div className="flex items-center gap-2 border-b border-slate-200 bg-white/60 px-4 py-2.5">
+    <article className="flex h-full min-w-0 flex-col bg-[#f7f8fa]">
+      <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white/60 px-4 py-2.5">
         <button onClick={onBack} className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-slate-600 transition hover:bg-slate-100">
           <ArrowLeft size={14} /> Inbox
         </button>
