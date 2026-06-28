@@ -1,20 +1,19 @@
-import { useId } from 'react'
-
-/** The MailKite kite mark — a gradient diamond kite with spars + a wavy tail.
- *  Used as the default logo and the favicon source. */
+/** The MailKite mark — the "sail kite": duotone blue/violet sails + a webhook
+ *  string with a dot. Transparent, so it reads on light or dark. Used as the
+ *  default logo and the favicon source. */
 export function KiteMark({ className }: { className?: string }) {
-  const id = useId()
   return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className={className}>
-      <defs>
-        <linearGradient id={id} x1="4" y1="3" x2="20" y2="18" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#6ea8fe" />
-          <stop offset="1" stopColor="#7c6cff" />
-        </linearGradient>
-      </defs>
-      <path d="M12 2.5 19 9 12 17 5 9Z" fill={`url(#${id})`} />
-      <path d="M12 2.5V17M5 9h14" stroke="#fff" strokeOpacity=".5" strokeWidth=".7" />
-      <path d="M12 17q2 1.4 0 2.8t0 2.8" stroke={`url(#${id})`} strokeWidth="1.4" strokeLinecap="round" fill="none" />
+    <svg
+      viewBox="13 6 38 40"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      className={['overflow-visible', className].filter(Boolean).join(' ')}
+    >
+      <path d="M32 6 L32 46 L13 23 Z" fill="#5b9bff" />
+      <path d="M32 6 L51 23 L32 46 Z" fill="#7c6cff" />
+      <path d="M32 46 C 35 52 41 53 45 58" stroke="#5b9bff" strokeWidth={3} strokeLinecap="round" />
+      <circle cx="45" cy="58" r="3" fill="#5b9bff" />
     </svg>
   )
 }

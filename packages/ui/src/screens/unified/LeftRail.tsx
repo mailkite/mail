@@ -28,7 +28,7 @@ export function LeftRail({
   ]
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-white p-3">
+    <div className="flex h-full flex-col overflow-y-auto bg-white p-3 dark:bg-slate-900">
       {canCompose && (
         <button
           onClick={onCompose}
@@ -39,16 +39,16 @@ export function LeftRail({
       )}
 
       {/* Screener — wired in a later phase */}
-      <div className="mb-3 rounded-xl bg-amber-50 p-2.5 ring-1 ring-amber-200">
+      <div className="mb-3 rounded-xl bg-amber-50 p-2.5 ring-1 ring-amber-200 dark:bg-amber-400/10 dark:ring-amber-400/20">
         <div className="flex items-center justify-between">
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-600">Screener</div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">Screener</div>
           <Soon />
         </div>
-        <div className="mt-0.5 text-[12px] text-slate-600">Hold unknown senders for review</div>
+        <div className="mt-0.5 text-[12px] text-slate-600 dark:text-slate-400">Hold unknown senders for review</div>
       </div>
 
       {/* Flow boxes */}
-      <div className="px-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Flow</div>
+      <div className="px-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Flow</div>
       <nav className="mt-1.5 space-y-0.5 text-[13px]">
         {boxes.map((b) => {
           const active = folder === b.id
@@ -59,8 +59,8 @@ export function LeftRail({
               className={
                 'flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left transition ' +
                 (active
-                  ? 'bg-indigo-50 font-medium text-indigo-700 ring-1 ring-indigo-100'
-                  : 'text-slate-500 hover:bg-slate-50')
+                  ? 'bg-indigo-50 font-medium text-indigo-700 ring-1 ring-indigo-100 dark:bg-indigo-500/15 dark:text-indigo-300 dark:ring-indigo-500/30'
+                  : 'text-slate-500 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-800')
               }
             >
               <span>{b.icon} {b.label}</span>
@@ -68,7 +68,7 @@ export function LeftRail({
                 <span
                   className={
                     'rounded-full px-1.5 text-[11px] font-bold ' +
-                    (active ? 'bg-amber-400 text-amber-950' : 'text-slate-400')
+                    (active ? 'bg-amber-400 text-amber-950' : 'text-slate-400 dark:text-slate-500')
                   }
                 >
                   {b.count}
@@ -81,33 +81,33 @@ export function LeftRail({
 
       {/* Bundles — soon */}
       <div className="mt-3 flex items-center justify-between px-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Bundles</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Bundles</span>
         <Soon />
       </div>
-      <nav className="mt-1.5 space-y-0.5 text-[13px] text-slate-400">
+      <nav className="mt-1.5 space-y-0.5 text-[13px] text-slate-400 dark:text-slate-500">
         <div className="flex cursor-default items-center justify-between rounded-lg px-2.5 py-1.5"><span>✉️ Newsletters</span></div>
         <div className="flex cursor-default items-center justify-between rounded-lg px-2.5 py-1.5"><span>🔔 Notifications</span></div>
       </nav>
 
-      <div className="my-3 border-t border-slate-200" />
+      <div className="my-3 border-t border-slate-200 dark:border-slate-800" />
 
       {/* Views — soon */}
       <div className="flex items-center justify-between px-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500">Views</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-500 dark:text-indigo-400">Views</span>
         <Soon />
       </div>
-      <nav className="mt-1.5 space-y-0.5 text-[13px] text-slate-400">
+      <nav className="mt-1.5 space-y-0.5 text-[13px] text-slate-400 dark:text-slate-500">
         <div className="flex cursor-default items-center justify-between rounded-lg px-2.5 py-1.5"><span>⚡ Action required</span></div>
         <div className="flex cursor-default items-center justify-between rounded-lg px-2.5 py-1.5"><span>⏳ Awaiting reply</span></div>
       </nav>
 
       <div className="mt-auto pt-3">
-        <div className="cursor-default rounded-xl bg-gradient-to-br from-indigo-50 to-violet-50 p-2.5 ring-1 ring-indigo-100">
+        <div className="cursor-default rounded-xl bg-gradient-to-br from-indigo-50 to-violet-50 p-2.5 ring-1 ring-indigo-100 dark:from-indigo-500/10 dark:to-violet-500/10 dark:ring-indigo-500/20">
           <div className="flex items-center justify-between">
-            <div className="text-[12px] font-medium text-indigo-700">✦ Organize my inbox</div>
+            <div className="text-[12px] font-medium text-indigo-700 dark:text-indigo-300">✦ Organize my inbox</div>
             <Soon />
           </div>
-          <div className="mt-0.5 text-[11px] text-slate-500">AI bulk-triage, with review</div>
+          <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">AI bulk-triage, with review</div>
         </div>
       </div>
     </div>
@@ -116,7 +116,7 @@ export function LeftRail({
 
 function Soon() {
   return (
-    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-400 ring-1 ring-slate-200">
+    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-400 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:ring-slate-700">
       soon
     </span>
   )

@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Make the `dark:` utility variant key off our data-theme attribute (set by
+   ThemeProvider) instead of the OS preference, so the toggle drives it. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme {
   /* Default (dark) — also the values used to generate the color utilities. */
   --color-bg: #0b0d12;
