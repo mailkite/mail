@@ -219,7 +219,18 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
       if (e.metaKey || e.ctrlKey || e.altKey) return
       const cur = messages[cursor]
       if (selected) {
-        if (e.key === 'e' || e.key === 'E') { e.preventDefault(); archive(selected) }
+        // Reading mode: J/K step to the next/prev message and open it beside the
+        // list; E archives the open one and advances; arrows stay free to scroll.
+        const idx = messages.findIndex((x) => x.id === selected.id)
+        if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); const n = messages[idx + 1]; if (n) openMessage(n) }
+        else if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp') { e.preventDefault(); const p = idx > 0 ? messages[idx - 1] : undefined; if (p) openMessage(p) }
+        else if (e.key === 'e' || e.key === 'E') {
+          e.preventDefault()
+          const next = messages[idx + 1] ?? (idx > 0 ? messages[idx - 1] : undefined)
+          setMessages((prev) => prev.filter((x) => x.id !== selected.id))
+          api.updateFlags(selected.id, { archived: true }).catch(() => load())
+          if (next) openMessage(next); else goBack()
+        }
         else if ((e.key === 'r' || e.key === 'R') && canSend) { e.preventDefault(); reply(selected) }
         else if (e.key === 'Escape') { e.preventDefault(); goBackHistory() }
         return
