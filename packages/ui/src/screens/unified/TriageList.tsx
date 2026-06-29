@@ -1,6 +1,7 @@
 import { Star } from 'lucide-react'
 import type { MessageRow } from '@mailkite/core'
 import { Avatar } from '../../components/Avatar'
+import { Kbd } from './Kbd'
 import { senderName, fmtTime, snippet } from './util'
 
 /** Unified Light · Column 2 — the triage card list. */
@@ -136,10 +137,6 @@ function Quick({ label, onClick, tone }: { label: string; onClick: () => void; t
       {label}
     </button>
   )
-}
-
-function Kbd({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <kbd className={'rounded bg-slate-100 px-1.5 py-0.5 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700 ' + className}>{children}</kbd>
 }
 
 function Placeholder({ text, tone }: { text: string; tone?: 'error' }) {

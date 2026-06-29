@@ -217,6 +217,10 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
       const el = e.target as HTMLElement
       if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return
       if (e.metaKey || e.ctrlKey || e.altKey) return
+      // Box switches work from anywhere in the mail view.
+      if (e.key === '1') { e.preventDefault(); goFolder('inbox'); return }
+      if (e.key === '2') { e.preventDefault(); goFolder('starred'); return }
+      if (e.key === '3') { e.preventDefault(); goFolder('archive'); return }
       const cur = messages[cursor]
       if (selected) {
         // Reading mode: J/K step to the next/prev message and open it beside the

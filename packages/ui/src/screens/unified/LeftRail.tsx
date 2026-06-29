@@ -1,15 +1,16 @@
 import { PenSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import type { Folder } from '@mailkite/core'
+import { Kbd } from './Kbd'
 
-const BOXES: { id: Folder; label: string; icon: string; desc: string }[] = [
-  { id: 'inbox', label: 'Priority', icon: '📥', desc: 'Mail from real people that needs you' },
-  { id: 'starred', label: 'Starred', icon: '⭐', desc: 'Messages you’ve flagged' },
-  { id: 'archive', label: 'Archive', icon: '🗄', desc: 'Everything you’ve filed away' },
+const BOXES: { id: Folder; label: string; icon: string; desc: string; key: string }[] = [
+  { id: 'inbox', label: 'Priority', icon: '📥', desc: 'Mail from real people that needs you', key: '1' },
+  { id: 'starred', label: 'Starred', icon: '⭐', desc: 'Messages you’ve flagged', key: '2' },
+  { id: 'archive', label: 'Archive', icon: '🗄', desc: 'Everything you’ve filed away', key: '3' },
 ]
 
 /** Hover tooltip for collapsed icons — title + description, escapes the rail to
  *  the right. Pure CSS (group-hover); no portal needed since the strip doesn't clip. */
-function Tip({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
+function Tip({ label, desc, kbd, children }: { label: string; desc?: string; kbd?: string; children: React.ReactNode }) {
   return (
     <div className="group/tip relative">
       {children}
@@ -17,7 +18,10 @@ function Tip({ label, desc, children }: { label: string; desc?: string; children
         role="tooltip"
         className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden w-52 -translate-y-1/2 rounded-md bg-slate-900 px-2.5 py-1.5 text-left shadow-lg group-hover/tip:block dark:bg-slate-700"
       >
-        <div className="text-[12px] font-medium text-white">{label}</div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[12px] font-medium text-white">{label}</span>
+          {kbd && <kbd className="rounded bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-slate-200">{kbd}</kbd>}
+        </div>
         {desc && <div className="mt-0.5 text-[11px] leading-snug text-slate-300">{desc}</div>}
       </div>
     </div>
@@ -67,7 +71,7 @@ export function LeftRail({
         {BOXES.map((b) => {
           const active = folder === b.id
           return (
-            <Tip key={b.id} label={b.label} desc={b.desc}>
+            <Tip key={b.id} label={b.label} desc={b.desc} kbd={b.key}>
               <button
                 onClick={() => onFolder(b.id)}
                 aria-label={b.label}
@@ -134,9 +138,12 @@ export function LeftRail({
               }
             >
               <span>{b.icon} {b.label}</span>
-              {b.id === 'inbox' && inboxCount ? (
-                <span className={'rounded-full px-1.5 text-[11px] font-bold ' + (active ? 'bg-amber-400 text-amber-950' : 'text-slate-400 dark:text-slate-500')}>{inboxCount}</span>
-              ) : null}
+              <span className="flex items-center gap-1.5">
+                {b.id === 'inbox' && inboxCount ? (
+                  <span className={'rounded-full px-1.5 text-[11px] font-bold ' + (active ? 'bg-amber-400 text-amber-950' : 'text-slate-400 dark:text-slate-500')}>{inboxCount}</span>
+                ) : null}
+                <Kbd>{b.key}</Kbd>
+              </span>
             </button>
           )
         })}
