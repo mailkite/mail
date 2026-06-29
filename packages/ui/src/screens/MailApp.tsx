@@ -12,6 +12,7 @@ import { Logo } from '../components/Logo'
 import { LeftRail } from './unified/LeftRail'
 import { TriageList } from './unified/TriageList'
 import { ReadingPane } from './unified/ReadingPane'
+import { ReplyPanel } from './unified/ReplyPanel'
 import { AssistantPanel } from './unified/AssistantPanel'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../components/resizable'
 
@@ -25,6 +26,7 @@ type View = 'mail' | 'settings' | 'profile' | 'teams'
 type Route =
   | { kind: 'folder'; folder: Folder }
   | { kind: 'message'; id: string }
+  | { kind: 'reply'; id: string }
   | { kind: 'settings' }
   | { kind: 'profile' }
   | { kind: 'teams' }
@@ -36,8 +38,10 @@ function parseRoute(path: string): Route {
   if (p === '/teams') return { kind: 'teams' }
   if (p === '/starred') return { kind: 'folder', folder: 'starred' }
   if (p === '/archive') return { kind: 'folder', folder: 'archive' }
-  const m = p.match(/^\/m\/(.+)$/)
-  if (m) return { kind: 'message', id: decodeURIComponent(m[1]) }
+  const reply = p.match(/^\/m\/(.+)\/reply$/)
+  if (reply) return { kind: 'reply', id: decodeURIComponent(reply[1]) }
+  const msg = p.match(/^\/m\/(.+)$/)
+  if (msg) return { kind: 'message', id: decodeURIComponent(msg[1]) }
   return { kind: 'folder', folder: 'inbox' } // '/' and '/inbox'
 }
 
@@ -46,14 +50,16 @@ function pathFor(r: Route): string {
     case 'settings': return '/settings'
     case 'profile': return '/profile'
     case 'teams': return '/teams'
+    case 'reply': return `/m/${encodeURIComponent(r.id)}/reply`
     case 'message': return `/m/${encodeURIComponent(r.id)}`
     case 'folder': return r.folder === 'inbox' ? '/inbox' : `/${r.folder}`
   }
 }
 
+const reSubject = (s: string | null) => { const x = s ?? ''; return /^re:/i.test(x) ? x : `Re: ${x}` }
 const initialRoute = parseRoute(typeof location !== 'undefined' ? location.pathname : '/')
 
-/** Back bar shown atop the settings/profile/teams routes — router.back(). */
+/** Back bar shown atop the settings/profile/teams routes — history.back(). */
 function BackBar({ label, onBack }: { label: string; onBack: () => void }) {
   return (
     <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900">
@@ -66,20 +72,23 @@ function BackBar({ label, onBack }: { label: string; onBack: () => void }) {
 }
 
 /**
- * Unified Light — three-column, keyboard-first inbox with URL routing.
- * Every surface has a route: /inbox · /starred · /archive · /m/:id (one per
- * message) · /settings · /profile · /teams. Back/forward and deep links work
- * (a /m/:id link not in the loaded list is fetched). See docs/ui-redesign-plan.md.
+ * Unified Light — keyboard-first inbox. The URL is the single source of truth:
+ * every drill level is a route (/inbox · /m/:id · /m/:id/reply · /settings …),
+ * the panel layout + which panel is collapsed are derived from it, and "back"
+ * (button, Esc/Backspace, browser) is always history.back(). See
+ * docs/ui-redesign-plan.md.
  */
 export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () => void }) {
   const [messages, setMessages] = useState<MessageRow[]>([])
-  const [selected, setSelected] = useState<MessageRow | null>(null) // open message → reading mode
-  const [cursor, setCursor] = useState(0) // keyboard highlight in the list
+  const [selected, setSelected] = useState<MessageRow | null>(null)
+  const [replying, setReplying] = useState(initialRoute.kind === 'reply')
+  const [replyText, setReplyText] = useState('')
+  const [cursor, setCursor] = useState(0)
   const [folder, setFolder] = useState<Folder>(initialRoute.kind === 'folder' ? initialRoute.folder : 'inbox')
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [draft, setDraft] = useState<ComposeDraft | null>(null)
+  const [draft, setDraft] = useState<ComposeDraft | null>(null) // Compose modal (new message)
   const [config, setConfig] = useState<AppConfig | null>(null)
   const [view, setView] = useState<View>(
     initialRoute.kind === 'settings' || initialRoute.kind === 'profile' || initialRoute.kind === 'teams' ? initialRoute.kind : 'mail',
@@ -91,21 +100,17 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   const isAdmin = user?.role === 'admin'
   const { resolved, setMode } = useTheme()
 
+  const selectedRef = useRef<MessageRow | null>(null)
+  useEffect(() => { selectedRef.current = selected }, [selected])
+  const savedDrafts = useRef<Record<string, string>>({}) // message id → unsent reply text
+
   useEffect(() => { try { localStorage.setItem('mailkite.rail.collapsed', railCollapsed ? '1' : '0') } catch { /* no-op */ } }, [railCollapsed])
 
-  // Below this width there isn't room for rail + list + reading + assistant, so
-  // expanding the menu while reading closes the message. Huge monitors keep both.
+  // Below this width there's no room for rail + list + reading + assistant, so a
+  // message forces the rail to icons; huge monitors keep the user's preference.
   const HUGE = 1536
   const isHuge = () => typeof window !== 'undefined' && window.innerWidth >= HUGE
-
-  // Opening a message from the list auto-collapses the rail to icons (room for
-  // reading) — but only on non-huge screens; big monitors keep the rail as-is.
-  const hadSelection = useRef(false)
-  useEffect(() => {
-    const has = !!selected
-    if (has && !hadSelection.current && !isHuge()) setRailCollapsed(true)
-    hadSelection.current = has
-  }, [selected])
+  const railShown = selected && !isHuge() ? true : railCollapsed
 
   useEffect(() => {
     api.config().then(setConfig).catch(() =>
@@ -135,9 +140,17 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
 
   useEffect(() => { setCursor((c) => Math.min(Math.max(0, c), Math.max(0, messages.length - 1))) }, [messages])
 
+  // Keep the unsent reply saved as a draft, keyed by message, so leaving /reply
+  // (back, browser, switching) never loses it.
+  useEffect(() => {
+    if (!replying || !selected) return
+    const id = selected.id
+    if (replyText.trim()) savedDrafts.current[id] = replyText
+    else delete savedDrafts.current[id]
+  }, [replyText, replying, selected])
+
   const canSend = config?.sending ?? false
 
-  // Mark a message read and show it in the reading pane (no URL change here).
   function showMessage(m: MessageRow) {
     setSelected(m)
     if (m.unread) {
@@ -146,19 +159,19 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
     }
   }
 
-  // Apply a route to view/folder/selected without pushing history (mount + popstate).
+  // Reconstruct UI state from the URL (mount + back/forward). No history push.
   const applyRoute = useCallback((r: Route) => {
-    if (r.kind === 'settings' || r.kind === 'profile' || r.kind === 'teams') { setSelected(null); setView(r.kind); return }
-    if (r.kind === 'folder') { setView('mail'); setSelected(null); setFolder(r.folder); return }
+    if (r.kind === 'settings' || r.kind === 'profile' || r.kind === 'teams') { setReplying(false); setSelected(null); setView(r.kind); return }
+    if (r.kind === 'folder') { setView('mail'); setReplying(false); setSelected(null); setFolder(r.folder); return }
+    // message | reply
     setView('mail')
-    setSelected((cur) => {
-      if (cur?.id === r.id) return cur
+    setReplying(r.kind === 'reply')
+    if (r.kind === 'reply') setReplyText(savedDrafts.current[r.id] ?? '')
+    if (selectedRef.current?.id !== r.id) {
       api.getMessage(r.id).then(showMessage).catch(() => setSelected(null))
-      return cur
-    })
+    }
   }, [])
 
-  // Sync with the URL on mount and on back/forward.
   useEffect(() => {
     applyRoute(parseRoute(location.pathname))
     const onPop = () => applyRoute(parseRoute(location.pathname))
@@ -166,23 +179,29 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
     return () => window.removeEventListener('popstate', onPop)
   }, [applyRoute])
 
-  function navigate(r: Route) {
-    try { history.pushState({}, '', pathFor(r)) } catch { /* no-op */ }
-  }
-  function goHome() { try { history.pushState({}, '', '/') } catch { /* no-op */ } ; setView('mail'); setSelected(null); setFolder('inbox') }
-  // Router-style back: pop history (popstate re-syncs state); fall back to home.
+  function push(r: Route) { try { history.pushState({}, '', pathFor(r)) } catch { /* no-op */ } }
   function goBackHistory() { if (typeof history !== 'undefined' && history.length > 1) history.back(); else goHome() }
-  function goFolder(f: Folder) { navigate({ kind: 'folder', folder: f }); setView('mail'); setSelected(null); setFolder(f) }
-  // Toggle the rail. Expanding while reading on a non-huge screen closes the
-  // message detail to make room; huge monitors keep it open.
-  function toggleRail() {
-    const next = !railCollapsed
-    if (!next && selected && !isHuge()) goBack()
-    setRailCollapsed(next)
+  function goHome() { push({ kind: 'folder', folder: 'inbox' }); setView('mail'); setReplying(false); setSelected(null); setFolder('inbox') }
+  function goFolder(f: Folder) { push({ kind: 'folder', folder: f }); setView('mail'); setReplying(false); setSelected(null); setFolder(f) }
+  function goView(v: Exclude<View, 'mail'>) { push({ kind: v }); setReplying(false); setSelected(null); setView(v) }
+  function openMessage(m: MessageRow) { push({ kind: 'message', id: m.id }); setView('mail'); setReplying(false); showMessage(m) }
+  function startReply(m: MessageRow, text?: string) {
+    push({ kind: 'reply', id: m.id })
+    setView('mail'); setReplying(true)
+    setReplyText(text ?? savedDrafts.current[m.id] ?? '')
+    showMessage(m)
   }
-  function goView(v: Exclude<View, 'mail'>) { navigate({ kind: v }); setSelected(null); setView(v) }
-  function openMessage(m: MessageRow) { navigate({ kind: 'message', id: m.id }); setView('mail'); showMessage(m) }
-  function goBack() { goFolder(folder) }
+  function onReplySent() {
+    if (selected) delete savedDrafts.current[selected.id]
+    setReplyText('')
+    goBackHistory() // /reply → /m/:id
+  }
+  // Toggle rail. On a non-huge screen with a message open, "expand" means going
+  // back to the list (which reveals the menu); otherwise flip the preference.
+  function toggleRail() {
+    if (selected && !isHuge()) { goBackHistory(); return }
+    setRailCollapsed((c) => !c)
+  }
 
   async function toggleStar(m: MessageRow) {
     const starred = m.starred ? 0 : 1
@@ -193,7 +212,7 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
 
   async function archive(m: MessageRow) {
     setMessages((prev) => prev.filter((x) => x.id !== m.id))
-    if (selected?.id === m.id) goBack()
+    if (selected?.id === m.id) goBackHistory()
     try { await api.updateFlags(m.id, { archived: true }) } catch { load() }
   }
 
@@ -201,30 +220,26 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   // session so the gesture feels live; they return on reload.
   function dismiss(m: MessageRow) {
     setMessages((prev) => prev.filter((x) => x.id !== m.id))
-    if (selected?.id === m.id) goBack()
+    if (selected?.id === m.id) goBackHistory()
   }
 
-  function reply(m: MessageRow, text?: string) {
-    const subject = m.subject ?? ''
-    setDraft({ from: m.to_addr, to: m.from_addr, subject: /^re:/i.test(subject) ? subject : `Re: ${subject}`, inReplyTo: m.id, text })
-  }
-
-  // Keyboard-first navigation (J/K/E/R/Enter/Esc) in the mail view.
+  // Keyboard-first navigation. Esc/Backspace = back; box digits; J/K + arrows.
   useEffect(() => {
     if (view !== 'mail') return
     function onKey(e: KeyboardEvent) {
-      if (draft) return
+      if (draft) return // Compose modal owns the keyboard
+      if (e.key === 'Escape' && (selected || replying)) { e.preventDefault(); goBackHistory(); return }
       const el = e.target as HTMLElement
       if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return
       if (e.metaKey || e.ctrlKey || e.altKey) return
-      // Box switches work from anywhere in the mail view.
+      if (e.key === 'Backspace') { e.preventDefault(); goBackHistory(); return }
+      if (replying) return // composing — no nav shortcuts
       if (e.key === '1') { e.preventDefault(); goFolder('inbox'); return }
       if (e.key === '2') { e.preventDefault(); goFolder('starred'); return }
       if (e.key === '3') { e.preventDefault(); goFolder('archive'); return }
       const cur = messages[cursor]
       if (selected) {
-        // Reading mode: J/K step to the next/prev message and open it beside the
-        // list; E archives the open one and advances; arrows stay free to scroll.
+        // Reading: J/K + ↓/↑ step to next/prev and open it; E archives + advances.
         const idx = messages.findIndex((x) => x.id === selected.id)
         if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); const n = messages[idx + 1]; if (n) openMessage(n) }
         else if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp') { e.preventDefault(); const p = idx > 0 ? messages[idx - 1] : undefined; if (p) openMessage(p) }
@@ -233,27 +248,56 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
           const next = messages[idx + 1] ?? (idx > 0 ? messages[idx - 1] : undefined)
           setMessages((prev) => prev.filter((x) => x.id !== selected.id))
           api.updateFlags(selected.id, { archived: true }).catch(() => load())
-          if (next) openMessage(next); else goBack()
+          if (next) openMessage(next); else goBackHistory()
         }
-        else if ((e.key === 'r' || e.key === 'R') && canSend) { e.preventDefault(); reply(selected) }
-        else if (e.key === 'Escape') { e.preventDefault(); goBackHistory() }
+        else if ((e.key === 'r' || e.key === 'R') && canSend) { e.preventDefault(); startReply(selected) }
         return
       }
       if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); setCursor((c) => Math.min(c + 1, messages.length - 1)) }
       else if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp') { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)) }
       else if (e.key === 'Enter' || e.key === 'o') { if (cur) { e.preventDefault(); openMessage(cur) } }
       else if (e.key === 'e' || e.key === 'E') { if (cur) { e.preventDefault(); archive(cur) } }
-      else if ((e.key === 'r' || e.key === 'R') && canSend) { if (cur) { e.preventDefault(); reply(cur) } }
+      else if ((e.key === 'r' || e.key === 'R') && canSend) { if (cur) { e.preventDefault(); startReply(cur) } }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [view, messages, cursor, selected, draft, canSend, folder]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [view, messages, cursor, selected, replying, draft, canSend, folder]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const meta = FOLDER_META[folder]
 
+  // Content nodes — placed into different panel arrangements per drill level.
+  const listNode = (
+    <TriageList
+      messages={messages}
+      loading={loading}
+      error={error}
+      cursor={cursor}
+      selectedId={selected?.id}
+      title={query ? `Search · “${query}”` : meta.title}
+      subtitle={query ? `${messages.length} result${messages.length === 1 ? '' : 's'}` : meta.subtitle}
+      onOpen={openMessage}
+      onStar={toggleStar}
+      onLater={dismiss}
+      onAside={dismiss}
+    />
+  )
+  const readingNode = selected && (
+    <ReadingPane
+      message={selected}
+      canSend={canSend}
+      onBack={goBackHistory}
+      onReply={(m) => startReply(m)}
+      onStar={toggleStar}
+      onArchive={archive}
+      onLater={dismiss}
+      onAside={dismiss}
+    />
+  )
+  const assistantNode = <AssistantPanel message={selected} canSend={canSend} onSmartReply={(t) => selected && startReply(selected, t)} />
+  const drillKey = replying ? 'reply' : selected ? 'read' : 'list'
+
   return (
     <div className="flex h-screen flex-col bg-[#f7f8fa] text-slate-800 dark:bg-[#0b0f1c] dark:text-slate-200">
-      {/* Header — Ask anything (search) */}
       <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900">
         <button onClick={goHome} aria-label="Home" title="Home" className="shrink-0">
           <Logo name="MailKite" />
@@ -300,58 +344,54 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
       ) : (
         <>
           <div className="flex min-h-0 flex-1">
-            {/* Left rail — fixed collapsible aside (icons when collapsed). */}
-            <aside className={'shrink-0 border-r border-slate-200 transition-[width] duration-200 dark:border-slate-800 ' + (railCollapsed ? 'w-14' : 'w-56')}>
+            <aside className={'shrink-0 border-r border-slate-200 transition-[width] duration-200 dark:border-slate-800 ' + (railShown ? 'w-14' : 'w-56')}>
               <LeftRail
                 folder={folder}
                 onFolder={goFolder}
                 inboxCount={messages.filter((m) => m.unread).length}
                 canCompose={canSend}
                 onCompose={() => setDraft({ to: '', subject: '' })}
-                collapsed={railCollapsed}
+                collapsed={railShown}
                 onToggle={toggleRail}
               />
             </aside>
 
-            {/* Content — list, then (when reading) the message opens to its right. */}
             <div className="min-w-0 flex-1">
-              <ResizablePanelGroup key={selected ? 'reading' : 'list'} orientation="horizontal" className="h-full">
-                <ResizablePanel id="list" defaultSize={selected ? '34%' : '68%'} minSize="22%">
-                  <TriageList
-                    messages={messages}
-                    loading={loading}
-                    error={error}
-                    cursor={cursor}
-                    selectedId={selected?.id}
-                    title={query ? `Search · “${query}”` : meta.title}
-                    subtitle={query ? `${messages.length} result${messages.length === 1 ? '' : 's'}` : meta.subtitle}
-                    onOpen={openMessage}
-                    onStar={toggleStar}
-                    onLater={dismiss}
-                    onAside={dismiss}
-                  />
-                </ResizablePanel>
-                {selected && (
+              <ResizablePanelGroup key={drillKey} orientation="horizontal" className="h-full">
+                {replying && selected ? (
                   <>
+                    <ResizablePanel id="reading" defaultSize="32%" minSize="22%">{readingNode}</ResizablePanel>
                     <ResizableHandle withHandle />
-                    <ResizablePanel id="reading" defaultSize="42%" minSize="28%">
-                      <ReadingPane
-                        message={selected}
-                        canSend={canSend}
+                    <ResizablePanel id="reply" defaultSize="44%" minSize="30%">
+                      <ReplyPanel
+                        to={selected.from_addr}
+                        fromDefault={selected.to_addr}
+                        subject={reSubject(selected.subject)}
+                        inReplyTo={selected.id}
+                        text={replyText}
+                        onText={setReplyText}
                         onBack={goBackHistory}
-                        onReply={(m) => reply(m)}
-                        onStar={toggleStar}
-                        onArchive={archive}
-                        onLater={dismiss}
-                        onAside={dismiss}
+                        onSent={onReplySent}
                       />
                     </ResizablePanel>
+                    <ResizableHandle withHandle />
+                    <ResizablePanel id="assistant" defaultSize="24%" minSize="18%" maxSize="42%">{assistantNode}</ResizablePanel>
+                  </>
+                ) : selected ? (
+                  <>
+                    <ResizablePanel id="list" defaultSize="34%" minSize="22%">{listNode}</ResizablePanel>
+                    <ResizableHandle withHandle />
+                    <ResizablePanel id="reading" defaultSize="42%" minSize="28%">{readingNode}</ResizablePanel>
+                    <ResizableHandle withHandle />
+                    <ResizablePanel id="assistant" defaultSize="24%" minSize="18%" maxSize="42%">{assistantNode}</ResizablePanel>
+                  </>
+                ) : (
+                  <>
+                    <ResizablePanel id="list" defaultSize="68%" minSize="22%">{listNode}</ResizablePanel>
+                    <ResizableHandle withHandle />
+                    <ResizablePanel id="assistant" defaultSize="32%" minSize="18%" maxSize="42%">{assistantNode}</ResizablePanel>
                   </>
                 )}
-                <ResizableHandle withHandle />
-                <ResizablePanel id="assistant" defaultSize={selected ? '24%' : '32%'} minSize="18%" maxSize="42%">
-                  <AssistantPanel message={selected} canSend={canSend} onSmartReply={(t) => selected && reply(selected, t)} />
-                </ResizablePanel>
               </ResizablePanelGroup>
             </div>
           </div>
