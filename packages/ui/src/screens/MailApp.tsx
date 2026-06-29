@@ -241,7 +241,7 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
       {/* Header — Ask anything (search) */}
       <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900">
         <button onClick={goHome} aria-label="Home" title="Home" className="shrink-0">
-          <Logo />
+          <Logo name="MailKite" />
         </button>
         <div className="flex flex-1 items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-[13px] ring-1 ring-slate-200 focus-within:ring-indigo-300 dark:bg-slate-800 dark:ring-slate-700">
           <span className="text-indigo-500">✦</span>
