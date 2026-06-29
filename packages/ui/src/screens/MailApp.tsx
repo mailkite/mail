@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MessageRow, Folder } from '@mailkite/core'
 import { Moon, Sun, Settings as SettingsIcon, Users, ArrowLeft, BookOpen } from 'lucide-react'
 import { api, type AppConfig, type SessionUser } from '../lib/api'
@@ -92,8 +92,20 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   const { resolved, setMode } = useTheme()
 
   useEffect(() => { try { localStorage.setItem('mailkite.rail.collapsed', railCollapsed ? '1' : '0') } catch { /* no-op */ } }, [railCollapsed])
-  // Opening a message auto-collapses the rail to icons to make room for reading.
-  const railShownCollapsed = railCollapsed || !!selected
+
+  // Below this width there isn't room for rail + list + reading + assistant, so
+  // expanding the menu while reading closes the message. Huge monitors keep both.
+  const HUGE = 1536
+  const isHuge = () => typeof window !== 'undefined' && window.innerWidth >= HUGE
+
+  // Opening a message from the list auto-collapses the rail to icons (room for
+  // reading) — but only on non-huge screens; big monitors keep the rail as-is.
+  const hadSelection = useRef(false)
+  useEffect(() => {
+    const has = !!selected
+    if (has && !hadSelection.current && !isHuge()) setRailCollapsed(true)
+    hadSelection.current = has
+  }, [selected])
 
   useEffect(() => {
     api.config().then(setConfig).catch(() =>
@@ -161,6 +173,13 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   // Router-style back: pop history (popstate re-syncs state); fall back to home.
   function goBackHistory() { if (typeof history !== 'undefined' && history.length > 1) history.back(); else goHome() }
   function goFolder(f: Folder) { navigate({ kind: 'folder', folder: f }); setView('mail'); setSelected(null); setFolder(f) }
+  // Toggle the rail. Expanding while reading on a non-huge screen closes the
+  // message detail to make room; huge monitors keep it open.
+  function toggleRail() {
+    const next = !railCollapsed
+    if (!next && selected && !isHuge()) goBack()
+    setRailCollapsed(next)
+  }
   function goView(v: Exclude<View, 'mail'>) { navigate({ kind: v }); setSelected(null); setView(v) }
   function openMessage(m: MessageRow) { navigate({ kind: 'message', id: m.id }); setView('mail'); showMessage(m) }
   function goBack() { goFolder(folder) }
@@ -267,15 +286,15 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
         <>
           <div className="flex min-h-0 flex-1">
             {/* Left rail — fixed collapsible aside (icons when collapsed). */}
-            <aside className={'shrink-0 border-r border-slate-200 transition-[width] duration-200 dark:border-slate-800 ' + (railShownCollapsed ? 'w-14' : 'w-56')}>
+            <aside className={'shrink-0 border-r border-slate-200 transition-[width] duration-200 dark:border-slate-800 ' + (railCollapsed ? 'w-14' : 'w-56')}>
               <LeftRail
                 folder={folder}
                 onFolder={goFolder}
                 inboxCount={messages.filter((m) => m.unread).length}
                 canCompose={canSend}
                 onCompose={() => setDraft({ to: '', subject: '' })}
-                collapsed={railShownCollapsed}
-                onToggle={() => setRailCollapsed((c) => !c)}
+                collapsed={railCollapsed}
+                onToggle={toggleRail}
               />
             </aside>
 

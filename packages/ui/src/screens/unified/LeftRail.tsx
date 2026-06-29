@@ -1,11 +1,28 @@
 import { PenSquare, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import type { Folder } from '@mailkite/core'
 
-const BOXES: { id: Folder; label: string; icon: string }[] = [
-  { id: 'inbox', label: 'Priority', icon: '📥' },
-  { id: 'starred', label: 'Starred', icon: '⭐' },
-  { id: 'archive', label: 'Archive', icon: '🗄' },
+const BOXES: { id: Folder; label: string; icon: string; desc: string }[] = [
+  { id: 'inbox', label: 'Priority', icon: '📥', desc: 'Mail from real people that needs you' },
+  { id: 'starred', label: 'Starred', icon: '⭐', desc: 'Messages you’ve flagged' },
+  { id: 'archive', label: 'Archive', icon: '🗄', desc: 'Everything you’ve filed away' },
 ]
+
+/** Hover tooltip for collapsed icons — title + description, escapes the rail to
+ *  the right. Pure CSS (group-hover); no portal needed since the strip doesn't clip. */
+function Tip({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
+  return (
+    <div className="group/tip relative">
+      {children}
+      <div
+        role="tooltip"
+        className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden w-52 -translate-y-1/2 rounded-md bg-slate-900 px-2.5 py-1.5 text-left shadow-lg group-hover/tip:block dark:bg-slate-700"
+      >
+        <div className="text-[12px] font-medium text-white">{label}</div>
+        {desc && <div className="mt-0.5 text-[11px] leading-snug text-slate-300">{desc}</div>}
+      </div>
+    </div>
+  )
+}
 
 /**
  * Unified Light · Column 1 — Flow boxes + Views, collapsible to an icon strip.
@@ -33,36 +50,40 @@ export function LeftRail({
 }) {
   if (collapsed) {
     return (
-      <div className="flex h-full flex-col items-center gap-1 overflow-y-auto bg-white p-2 dark:bg-slate-900">
-        <button onClick={onToggle} aria-label="Expand menu" title="Expand menu" className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">
-          <PanelLeftOpen size={16} />
-        </button>
-        {canCompose && (
-          <button onClick={onCompose} aria-label="Compose" title="Compose" className="grid h-9 w-9 place-items-center rounded-lg bg-indigo-600 text-white shadow-sm transition hover:bg-indigo-500">
-            <PenSquare size={15} />
+      <div className="flex h-full flex-col items-center gap-1 overflow-visible bg-white p-2 dark:bg-slate-900">
+        <Tip label="Expand menu">
+          <button onClick={onToggle} aria-label="Expand menu" className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">
+            <PanelLeftOpen size={16} />
           </button>
+        </Tip>
+        {canCompose && (
+          <Tip label="Compose" desc="Write a new message">
+            <button onClick={onCompose} aria-label="Compose" className="grid h-9 w-9 place-items-center rounded-lg bg-indigo-600 text-white shadow-sm transition hover:bg-indigo-500">
+              <PenSquare size={15} />
+            </button>
+          </Tip>
         )}
         <div className="my-1 h-px w-6 bg-slate-200 dark:bg-slate-800" />
         {BOXES.map((b) => {
           const active = folder === b.id
           return (
-            <button
-              key={b.id}
-              onClick={() => onFolder(b.id)}
-              aria-label={b.label}
-              title={b.label}
-              className={
-                'relative grid h-9 w-9 place-items-center rounded-lg text-[15px] transition ' +
-                (active
-                  ? 'bg-indigo-50 ring-1 ring-indigo-100 dark:bg-indigo-500/15 dark:ring-indigo-500/30'
-                  : 'hover:bg-slate-100 dark:hover:bg-slate-800')
-              }
-            >
-              <span>{b.icon}</span>
-              {b.id === 'inbox' && inboxCount ? (
-                <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[9px] font-bold text-amber-950">{inboxCount}</span>
-              ) : null}
-            </button>
+            <Tip key={b.id} label={b.label} desc={b.desc}>
+              <button
+                onClick={() => onFolder(b.id)}
+                aria-label={b.label}
+                className={
+                  'relative grid h-9 w-9 place-items-center rounded-lg text-[15px] transition ' +
+                  (active
+                    ? 'bg-indigo-50 ring-1 ring-indigo-100 dark:bg-indigo-500/15 dark:ring-indigo-500/30'
+                    : 'hover:bg-slate-100 dark:hover:bg-slate-800')
+                }
+              >
+                <span>{b.icon}</span>
+                {b.id === 'inbox' && inboxCount ? (
+                  <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[9px] font-bold text-amber-950">{inboxCount}</span>
+                ) : null}
+              </button>
+            </Tip>
           )
         })}
       </div>
