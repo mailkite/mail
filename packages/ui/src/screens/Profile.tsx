@@ -1,8 +1,101 @@
 import { useState } from 'react'
-import { AlertTriangle, LogOut, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Check, LogOut, Monitor, Moon, ShieldCheck, Sun } from 'lucide-react'
 import { api, type SessionUser } from '../lib/api'
 import { Avatar } from '../components/Avatar'
 import { Button } from '../components/Button'
+import { useTheme } from '../theme/ThemeProvider'
+import { PRESETS, type ThemeMode } from '../theme/presets'
+
+const MODES: { id: ThemeMode; label: string; icon: typeof Sun }[] = [
+  { id: 'light', label: 'Light', icon: Sun },
+  { id: 'dark', label: 'Dark', icon: Moon },
+  { id: 'system', label: 'Auto', icon: Monitor },
+]
+
+/**
+ * Appearance — per-user color theme (preset) and light/dark/auto mode. Persists
+ * via ThemeProvider (localStorage); applies live to the whole app.
+ */
+function AppearanceSection() {
+  const { mode, setMode, preset, setPreset } = useTheme()
+  return (
+    <div className="rounded-lg border border-[var(--color-border)] p-5">
+      <h2 className="text-sm font-semibold">Appearance</h2>
+      <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+        Pick a color theme and how it follows your system.
+      </p>
+
+      {/* Theme presets */}
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {PRESETS.map((t) => {
+          const active = t.id === preset
+          return (
+            <button
+              key={t.id}
+              onClick={() => setPreset(t.id)}
+              aria-pressed={active}
+              className={
+                'relative flex flex-col gap-2 rounded-lg border p-3 text-left transition ' +
+                (active
+                  ? 'border-[var(--color-accent)] bg-[color-mix(in_oklab,var(--color-accent)_8%,transparent)]'
+                  : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50')
+              }
+            >
+              {active && (
+                <span className="absolute right-2 top-2 grid h-4 w-4 place-items-center rounded-full bg-[var(--color-accent)] text-white">
+                  <Check size={11} strokeWidth={3} />
+                </span>
+              )}
+              {/* Mini preview swatch */}
+              <span
+                className="flex h-9 items-center gap-1.5 rounded-md px-2 ring-1 ring-black/5"
+                style={{ background: t.swatch.bg }}
+              >
+                <span className="h-4 w-4 rounded-full" style={{ background: t.swatch.accent }} />
+                <span className="h-4 w-4 rounded-full" style={{ background: t.swatch.accent2 }} />
+                <span
+                  className="ml-auto h-5 w-8 rounded"
+                  style={{ background: t.swatch.panel, boxShadow: '0 1px 2px rgba(0,0,0,.12)' }}
+                />
+              </span>
+              <span>
+                <span className="block text-sm font-medium">{t.name}</span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-[var(--color-muted)]">
+                  {t.description}
+                </span>
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Light / Dark / Auto */}
+      <div className="mt-4">
+        <p className="mb-1.5 text-xs text-[var(--color-muted)]">Mode</p>
+        <div className="inline-flex rounded-lg border border-[var(--color-border)] p-0.5">
+          {MODES.map(({ id, label, icon: Icon }) => {
+            const active = id === mode
+            return (
+              <button
+                key={id}
+                onClick={() => setMode(id)}
+                aria-pressed={active}
+                className={
+                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition ' +
+                  (active
+                    ? 'bg-[var(--color-accent)] font-medium text-white'
+                    : 'text-[var(--color-muted)] hover:text-[var(--color-text)]')
+                }
+              >
+                <Icon size={14} /> {label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 /**
  * Account settings for the signed-in user: identity card, sign out, and a
@@ -59,6 +152,9 @@ export function Profile({ user, onLogout }: { user: SessionUser; onLogout: () =>
             </Button>
           </div>
         </div>
+
+        {/* Appearance */}
+        <AppearanceSection />
 
         {/* Danger zone */}
         <div className="rounded-lg border border-red-500/40 bg-red-500/5 p-4">

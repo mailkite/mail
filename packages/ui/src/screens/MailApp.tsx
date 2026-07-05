@@ -62,11 +62,11 @@ const initialRoute = parseRoute(typeof location !== 'undefined' ? location.pathn
 /** Back bar shown atop the settings/profile/teams routes — history.back(). */
 function BackBar({ label, onBack }: { label: string; onBack: () => void }) {
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900">
-      <button onClick={onBack} aria-label="Back" className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+    <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-2.5">
+      <button onClick={onBack} aria-label="Back" className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-[var(--color-muted)] transition hover:bg-[color-mix(in_oklab,var(--color-border)_40%,transparent)] hover:text-[var(--color-text)]">
         <ArrowLeft size={14} /> Back
       </button>
-      <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{label}</span>
+      <span className="text-[13px] font-semibold text-[var(--color-text)]">{label}</span>
     </div>
   )
 }
@@ -306,34 +306,34 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   const drillKey = replying ? 'reply' : selected ? 'read' : 'list'
 
   return (
-    <div className="flex h-screen flex-col bg-[#f7f8fa] text-slate-800 dark:bg-[#0b0f1c] dark:text-slate-200">
-      <header className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-white px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900">
+    <div className="flex h-screen flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
+      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-panel)] px-4 py-2.5">
         <button onClick={goHome} aria-label="Home" title="Home" className="shrink-0">
           <Logo name="MailKite" />
         </button>
-        <div className="flex flex-1 items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-[13px] ring-1 ring-slate-200 focus-within:ring-indigo-300 dark:bg-slate-800 dark:ring-slate-700">
-          <span className="text-indigo-500">✦</span>
+        <div className="flex flex-1 items-center gap-2 rounded-xl bg-[color-mix(in_oklab,var(--color-border)_35%,transparent)] px-3 py-2 text-[13px] ring-1 ring-[var(--color-border)] focus-within:ring-[var(--color-accent)]">
+          <span className="text-[var(--color-accent)]">✦</span>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Ask anything — search your mail"
-            className="min-w-0 flex-1 bg-transparent text-slate-700 outline-none placeholder:text-slate-400 dark:text-slate-200"
+            className="min-w-0 flex-1 bg-transparent text-[var(--color-text)] outline-none placeholder:text-[var(--color-muted)]"
           />
-          <span className="ml-auto rounded bg-white px-1.5 text-[11px] text-slate-400 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-700">⌘K</span>
+          <span className="ml-auto rounded bg-[var(--color-panel)] px-1.5 text-[11px] text-[var(--color-muted)] ring-1 ring-[var(--color-border)]">⌘K</span>
         </div>
-        <a href="/redesign.html" target="_blank" rel="noopener noreferrer" aria-label="Design docs" title="Design docs" className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">
+        <a href="/redesign.html" target="_blank" rel="noopener noreferrer" aria-label="Design docs" title="Design docs" className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-muted)] transition hover:bg-[color-mix(in_oklab,var(--color-border)_40%,transparent)] hover:text-[var(--color-text)]">
           <BookOpen size={16} />
         </a>
-        <button onClick={() => setMode(resolved === 'dark' ? 'light' : 'dark')} aria-label="Toggle theme" className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">
+        <button onClick={() => setMode(resolved === 'dark' ? 'light' : 'dark')} aria-label="Toggle theme" className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-muted)] transition hover:bg-[color-mix(in_oklab,var(--color-border)_40%,transparent)] hover:text-[var(--color-text)]">
           {resolved === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
         {canManageTeam && (
-          <button onClick={() => goView('teams')} aria-label="Teams" className={'grid h-8 w-8 place-items-center rounded-lg transition hover:bg-slate-100 dark:hover:bg-slate-800 ' + (view === 'teams' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400')}>
+          <button onClick={() => goView('teams')} aria-label="Teams" className={'grid h-8 w-8 place-items-center rounded-lg transition hover:bg-[color-mix(in_oklab,var(--color-border)_40%,transparent)] ' + (view === 'teams' ? 'text-[var(--color-accent)]' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]')}>
             <Users size={16} />
           </button>
         )}
         {isAdmin && (
-          <button onClick={() => goView('settings')} aria-label="Settings" className={'grid h-8 w-8 place-items-center rounded-lg transition hover:bg-slate-100 dark:hover:bg-slate-800 ' + (view === 'settings' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400')}>
+          <button onClick={() => goView('settings')} aria-label="Settings" className={'grid h-8 w-8 place-items-center rounded-lg transition hover:bg-[color-mix(in_oklab,var(--color-border)_40%,transparent)] ' + (view === 'settings' ? 'text-[var(--color-accent)]' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]')}>
             <SettingsIcon size={16} />
           </button>
         )}
@@ -353,7 +353,7 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
       ) : (
         <>
           <div className="flex min-h-0 flex-1">
-            <aside className={'shrink-0 border-r border-slate-200 transition-[width] duration-200 dark:border-slate-800 ' + (railShown ? 'w-14' : 'w-56')}>
+            <aside className={'shrink-0 border-r border-[var(--color-border)] transition-[width] duration-200 ' + (railShown ? 'w-14' : 'w-56')}>
               <LeftRail
                 folder={folder}
                 onFolder={goFolder}
@@ -395,21 +395,21 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
             </div>
 
             {/* Assistant — a collapsible right rail, mirroring the LeftRail. */}
-            <aside className={'shrink-0 border-l border-slate-200 transition-[width] duration-200 dark:border-slate-800 ' + (assistantCollapsed ? 'w-14' : 'w-80')}>
+            <aside className={'shrink-0 border-l border-[var(--color-border)] transition-[width] duration-200 ' + (assistantCollapsed ? 'w-14' : 'w-80')}>
               {assistantNode}
             </aside>
           </div>
 
           {/* Fixed triage footer — spans the window, never scrolls. */}
-          <footer className="flex shrink-0 items-center gap-2 border-t border-slate-200 bg-white px-5 py-2 text-[11px] dark:border-slate-800 dark:bg-slate-900">
+          <footer className="flex shrink-0 items-center gap-2 border-t border-[var(--color-border)] bg-[var(--color-panel)] px-5 py-2 text-[11px]">
             <span className="rounded-lg bg-amber-50 px-2.5 py-1.5 font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/20">↩ Reply Later</span>
             <span className="rounded-lg bg-sky-50 px-2.5 py-1.5 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-400/10 dark:text-sky-300 dark:ring-sky-400/20">📎 Set Aside</span>
-            <span className="ml-auto text-slate-400 dark:text-slate-500">
-              {messages.length === 0 ? 'Inbox Zero ✦' : <>Inbox Zero in <b className="text-indigo-600">{messages.length}</b></>}
+            <span className="ml-auto text-[var(--color-muted)]">
+              {messages.length === 0 ? 'Inbox Zero ✦' : <>Inbox Zero in <b className="text-[var(--color-accent)]">{messages.length}</b></>}
             </span>
             <button
               onClick={() => messages[0] && openMessage(messages[0])}
-              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-indigo-500"
+              className="rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:opacity-90"
             >
               Focus &amp; Reply →
             </button>
