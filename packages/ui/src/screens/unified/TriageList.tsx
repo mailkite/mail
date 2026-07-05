@@ -103,8 +103,18 @@ function TriageCard({
             {unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />}
             <span className="ml-auto shrink-0 text-[11px] text-[var(--color-muted)]">{fmtTime(m.received_at)}</span>
           </div>
-          <div className={'truncate text-[13px] ' + (unread ? 'text-[var(--color-text)]' : 'text-[var(--color-muted)]')}>
-            {m.subject || '(no subject)'}
+          <div className="flex items-center gap-1.5">
+            <span className={'truncate text-[13px] ' + (unread ? 'text-[var(--color-text)]' : 'text-[var(--color-muted)]')}>
+              {m.subject || '(no subject)'}
+            </span>
+            {(m.thread_count ?? 1) > 1 && (
+              <span
+                title={`${m.thread_count} messages in this conversation`}
+                className="shrink-0 rounded-full bg-[color-mix(in_oklab,var(--color-accent)_14%,transparent)] px-1.5 text-[11px] font-semibold text-[var(--color-accent)] ring-1 ring-[color-mix(in_oklab,var(--color-accent)_30%,transparent)]"
+              >
+                {m.thread_count}
+              </span>
+            )}
           </div>
           <div className="truncate text-[12px] text-[var(--color-muted)]">{snippet(m)}</div>
         </div>

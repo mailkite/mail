@@ -2,10 +2,19 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Send } from 'lucide-react'
 import { api } from '../../lib/api'
 
+export interface ReplyFields {
+  from: string
+  to: string
+  subject: string
+  text: string
+  inReplyTo: string
+}
+
 /**
  * Unified Light — inline reply composer, shown as a panel to the right of the
  * message (the list collapses). Body text is controlled by the parent so it can
- * be saved as a draft when the route leaves /reply.
+ * be saved as a draft when the route leaves /reply. Send itself is lifted to the
+ * parent (`onSend`) so it can thread the reply optimistically and animate it.
  */
 export function ReplyPanel({
   to,
@@ -15,7 +24,7 @@ export function ReplyPanel({
   text,
   onText,
   onBack,
-  onSent,
+  onSend,
 }: {
   to: string
   fromDefault: string
@@ -24,14 +33,13 @@ export function ReplyPanel({
   text: string
   onText: (t: string) => void
   onBack: () => void
-  onSent: () => void
+  onSend: (fields: ReplyFields) => void
 }) {
   const [from, setFrom] = useState(fromDefault)
   const [toAddr, setToAddr] = useState(to)
   const [subject, setSubject] = useState(subject0)
   const [identities, setIdentities] = useState<string[]>([])
   const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     api.identities().then(({ identities, default: d }) => {
@@ -40,16 +48,9 @@ export function ReplyPanel({
     }).catch(() => {})
   }, [fromDefault])
 
-  async function send() {
-    setSending(true)
-    setError(null)
-    try {
-      await api.send({ from: from.trim() || undefined, to: toAddr, subject, text, inReplyTo })
-      onSent()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'send failed')
-      setSending(false)
-    }
+  function send() {
+    setSending(true) // brief guard against a double-fire before the panel unmounts
+    onSend({ from: from.trim(), to: toAddr, subject, text, inReplyTo })
   }
 
   const field =
@@ -62,7 +63,6 @@ export function ReplyPanel({
           <ArrowLeft size={14} /> Back
         </button>
         <span className="text-[13px] font-semibold text-[var(--color-text)]">Reply</span>
-        {error && <span className="truncate text-[12px] text-rose-500">{error}</span>}
         <button
           onClick={send}
           disabled={sending || !from || !toAddr || !subject}

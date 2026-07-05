@@ -11,11 +11,11 @@ import { Avatar } from '../components/Avatar'
 import { Logo } from '../components/Logo'
 import { LeftRail } from './unified/LeftRail'
 import { TriageList } from './unified/TriageList'
-import { ReadingPane } from './unified/ReadingPane'
-import { ReplyPanel } from './unified/ReplyPanel'
+import { ReadingPane, type PendingReply } from './unified/ReadingPane'
+import { ReplyPanel, type ReplyFields } from './unified/ReplyPanel'
 import { AssistantPanel } from './unified/AssistantPanel'
 import { senderName } from './unified/util'
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../components/resizable'
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup, useDefaultLayout } from '../components/resizable'
 
 const FOLDER_META: Record<Folder, { title: string; subtitle: string }> = {
   inbox: { title: 'Priority', subtitle: 'Mail from real people that needs you' },
@@ -84,6 +84,8 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   const [selected, setSelected] = useState<MessageRow | null>(null)
   const [replying, setReplying] = useState(initialRoute.kind === 'reply')
   const [replyText, setReplyText] = useState('')
+  const [pending, setPending] = useState<PendingReply[]>([]) // optimistic sent replies, by thread
+  const [threadRefresh, setThreadRefresh] = useState(0) // bump to re-hydrate the open thread
   const [cursor, setCursor] = useState(0)
   const [folder, setFolder] = useState<Folder>(initialRoute.kind === 'folder' ? initialRoute.folder : 'inbox')
   const [query, setQuery] = useState('')
@@ -118,7 +120,7 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
 
   useEffect(() => {
     api.config().then(setConfig).catch(() =>
-      setConfig({ sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '', githubClientId: '', appName: 'MailKite Mail', logoUrl: '', openRegistration: false }),
+      setConfig({ sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '', githubClientId: '', appName: 'MailKite Mail', logoUrl: '', openRegistration: false, assistant: false, assistantProvider: '' }),
     )
   }, [])
 
@@ -202,10 +204,56 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
     const first = senderName(m.from_addr).split(/\s+/)[0] || 'there'
     startReply(m, `Hi ${first},\n\n`)
   }
-  function onReplySent() {
-    if (selected) delete savedDrafts.current[selected.id]
+  // Send a reply and thread it optimistically: the reply appears in the
+  // conversation the instant Send is pressed (status "sending"), we drop back to
+  // the reading pane so the user watches it land, then the server confirm flips it
+  // to "sent" and we reconcile with the stored copy. A failure leaves it in place
+  // to Retry — the draft text is preserved so nothing is lost.
+  async function performSend(key: string, fields: ReplyFields) {
+    try {
+      const res = await api.send({ from: fields.from || undefined, to: fields.to, subject: fields.subject, text: fields.text, inReplyTo: fields.inReplyTo })
+      // Reconcile with the stored copy (real id) so the refetched thread and this
+      // placeholder dedupe cleanly.
+      setPending((p) => p.map((x) => (x.key === key ? { ...x, status: 'sent', message: res.message ?? x.message } : x)))
+      // Let "Sent" register for a beat, then re-hydrate the thread + list: the real
+      // message arrives and ReadingPane hides this now-duplicate placeholder (seamless
+      // swap). Drop the placeholder from state a little later, once it's already
+      // hidden, so it never flickers out before the server copy lands.
+      setTimeout(() => { setThreadRefresh((n) => n + 1); load() }, 900)
+      setTimeout(() => setPending((p) => p.filter((x) => x.key !== key)), 1600)
+    } catch (e) {
+      setPending((p) => p.map((x) => (x.key === key ? { ...x, status: 'error', error: e instanceof Error ? e.message : 'send failed' } : x)))
+    }
+  }
+
+  function sendReply(fields: ReplyFields) {
+    const anchor = selectedRef.current
+    if (!anchor) return
+    const key = `pending_${crypto.randomUUID()}`
+    const optimistic: MessageRow = {
+      id: key, thread_id: anchor.thread_id, direction: 'outbound',
+      from_addr: fields.from || anchor.to_addr, to_addr: fields.to, subject: fields.subject,
+      text_body: fields.text, html_body: null,
+      spf: null, dkim: null, dmarc: null, spam: null,
+      unread: 0, starred: 0, archived: 0, received_at: Date.now(),
+    }
+    setPending((p) => [...p, { key, threadId: anchor.thread_id, inReplyTo: fields.inReplyTo, message: optimistic, status: 'sending' }])
+    delete savedDrafts.current[anchor.id]
     setReplyText('')
-    goBackHistory() // /reply → /m/:id
+    goBackHistory() // /reply → /m/:id — watch it thread in
+    void performSend(key, fields)
+  }
+
+  function retryReply(key: string) {
+    const entry = pending.find((x) => x.key === key)
+    if (!entry) return
+    setPending((p) => p.map((x) => (x.key === key ? { ...x, status: 'sending', error: undefined } : x)))
+    const m = entry.message
+    void performSend(key, { from: m.from_addr, to: m.to_addr, subject: m.subject ?? '', text: m.text_body ?? '', inReplyTo: entry.inReplyTo })
+  }
+
+  function dismissPending(key: string) {
+    setPending((p) => p.filter((x) => x.key !== key))
   }
   // Toggle rail. With a message open on a screen too narrow to hold the expanded
   // menu beside it, "expand" returns to the list (which frees the width) and shows
@@ -226,10 +274,12 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
     try { await api.updateFlags(m.id, { starred: !m.starred }) } catch { load() }
   }
 
+  // Archive the whole conversation — the collapsed list shows one row per thread,
+  // so "archive" files the thread, not just its newest message.
   async function archive(m: MessageRow) {
-    setMessages((prev) => prev.filter((x) => x.id !== m.id))
-    if (selected?.id === m.id) goBackHistory()
-    try { await api.updateFlags(m.id, { archived: true }) } catch { load() }
+    setMessages((prev) => prev.filter((x) => x.thread_id !== m.thread_id))
+    if (selected?.thread_id === m.thread_id) goBackHistory()
+    try { await api.updateThreadFlags(m.thread_id, { archived: true }) } catch { load() }
   }
 
   // Reply Later / Set Aside have no persistence yet (phase I2) — dismiss for the
@@ -262,8 +312,8 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
         else if (e.key === 'e' || e.key === 'E') {
           e.preventDefault()
           const next = messages[idx + 1] ?? (idx > 0 ? messages[idx - 1] : undefined)
-          setMessages((prev) => prev.filter((x) => x.id !== selected.id))
-          api.updateFlags(selected.id, { archived: true }).catch(() => load())
+          setMessages((prev) => prev.filter((x) => x.thread_id !== selected.thread_id))
+          api.updateThreadFlags(selected.thread_id, { archived: true }).catch(() => load())
           if (next) openMessage(next); else goBackHistory()
         }
         else if ((e.key === 'r' || e.key === 'R') && canSend) { e.preventDefault(); startReply(selected) }
@@ -283,6 +333,13 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   }, [view, messages, cursor, selected, replying, draft, canSend, folder]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const meta = FOLDER_META[folder]
+  // Persist the resizable assistant column's width across reloads (localStorage-backed).
+  const assistantLayout = useDefaultLayout({
+    id: 'mailkite.assistant.layout',
+    storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
+    panelIds: ['main', 'assistant'],
+    onlySaveAfterUserInteractions: true,
+  })
 
   // Content nodes — placed into different panel arrangements per drill level.
   const listNode = (
@@ -304,17 +361,51 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
     <ReadingPane
       message={selected}
       canSend={canSend}
+      assistantEnabled={config?.assistant ?? false}
+      pending={pending.filter((p) => p.threadId === selected.thread_id)}
+      refreshKey={threadRefresh}
       onBack={goBackHistory}
       onReply={(m) => startReply(m)}
       onAiReply={aiReply}
+      onSmartReply={(m, t) => startReply(m, t)}
       onStar={toggleStar}
       onArchive={archive}
       onLater={dismiss}
       onAside={dismiss}
+      onRetry={retryReply}
+      onDismissPending={dismissPending}
     />
   )
-  const assistantNode = <AssistantPanel message={selected} canSend={canSend} onSmartReply={(t) => selected && startReply(selected, t)} collapsed={assistantCollapsed} onToggle={toggleAssistant} />
+  const assistantNode = <AssistantPanel message={selected} enabled={config?.assistant ?? false} provider={config?.assistantProvider} collapsed={assistantCollapsed} onToggle={toggleAssistant} />
   const drillKey = replying ? 'reply' : selected ? 'read' : 'list'
+  // The center column (list / reading / reply), shared by both assistant layouts below.
+  const centerArea =
+    replying && selected ? (
+      <ResizablePanelGroup key={drillKey} orientation="horizontal" className="h-full">
+        <ResizablePanel id="reading" defaultSize="42%" minSize="26%">{readingNode}</ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel id="reply" defaultSize="58%" minSize="34%">
+          <ReplyPanel
+            to={selected.from_addr}
+            fromDefault={selected.to_addr}
+            subject={reSubject(selected.subject)}
+            inReplyTo={selected.id}
+            text={replyText}
+            onText={setReplyText}
+            onBack={goBackHistory}
+            onSend={sendReply}
+          />
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    ) : selected ? (
+      <ResizablePanelGroup key={drillKey} orientation="horizontal" className="h-full">
+        <ResizablePanel id="list" defaultSize="40%" minSize="24%">{listNode}</ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel id="reading" defaultSize="60%" minSize="30%">{readingNode}</ResizablePanel>
+      </ResizablePanelGroup>
+    ) : (
+      <div className="h-full">{listNode}</div>
+    )
 
   return (
     <div className="flex h-screen flex-col bg-[var(--color-bg)] text-[var(--color-text)]">
@@ -374,39 +465,28 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
               />
             </aside>
 
-            <div className="min-w-0 flex-1">
-              {replying && selected ? (
-                <ResizablePanelGroup key={drillKey} orientation="horizontal" className="h-full">
-                  <ResizablePanel id="reading" defaultSize="42%" minSize="26%">{readingNode}</ResizablePanel>
-                  <ResizableHandle withHandle />
-                  <ResizablePanel id="reply" defaultSize="58%" minSize="34%">
-                    <ReplyPanel
-                      to={selected.from_addr}
-                      fromDefault={selected.to_addr}
-                      subject={reSubject(selected.subject)}
-                      inReplyTo={selected.id}
-                      text={replyText}
-                      onText={setReplyText}
-                      onBack={goBackHistory}
-                      onSent={onReplySent}
-                    />
-                  </ResizablePanel>
-                </ResizablePanelGroup>
-              ) : selected ? (
-                <ResizablePanelGroup key={drillKey} orientation="horizontal" className="h-full">
-                  <ResizablePanel id="list" defaultSize="40%" minSize="24%">{listNode}</ResizablePanel>
-                  <ResizableHandle withHandle />
-                  <ResizablePanel id="reading" defaultSize="60%" minSize="30%">{readingNode}</ResizablePanel>
-                </ResizablePanelGroup>
-              ) : (
-                <div className="h-full">{listNode}</div>
-              )}
-            </div>
-
-            {/* Assistant — a collapsible right rail, mirroring the LeftRail. */}
-            <aside className={'shrink-0 border-l border-[var(--color-border)] transition-[width] duration-200 ' + (assistantCollapsed ? 'w-14' : 'w-80')}>
-              {assistantNode}
-            </aside>
+            {/* Assistant — a collapsible, resizable right rail mirroring the LeftRail. Expanded:
+                center + assistant are a resizable pair (drag handle, width persists). Collapsed:
+                the assistant shrinks to a fixed icon rail and the center fills the rest. */}
+            {assistantCollapsed ? (
+              <>
+                <div className="min-w-0 flex-1">{centerArea}</div>
+                <aside className="w-14 shrink-0 border-l border-[var(--color-border)]">{assistantNode}</aside>
+              </>
+            ) : (
+              <ResizablePanelGroup
+                orientation="horizontal"
+                className="min-w-0 flex-1"
+                defaultLayout={assistantLayout.defaultLayout}
+                onLayoutChanged={assistantLayout.onLayoutChanged}
+              >
+                <ResizablePanel id="main" minSize="420px">{centerArea}</ResizablePanel>
+                <ResizableHandle withHandle />
+                <ResizablePanel id="assistant" defaultSize="320px" minSize="260px" maxSize="460px">
+                  <aside className="h-full border-l border-[var(--color-border)]">{assistantNode}</aside>
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            )}
           </div>
 
           {/* Fixed triage footer — spans the window, never scrolls. */}

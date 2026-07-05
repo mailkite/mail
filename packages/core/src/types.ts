@@ -45,6 +45,9 @@ export interface MessageRow {
   starred: number
   archived: number
   received_at: number
+  /** Set only by the collapsed list query: how many messages the thread holds
+   *  (within the current folder filter). Absent on single-message reads. */
+  thread_count?: number
 }
 
 export type Folder = 'inbox' | 'starred' | 'archive'
@@ -106,6 +109,19 @@ export interface UserRow {
   status?: UserStatus
   invited_by?: string | null
   avatar_url?: string | null
+}
+
+/** A per-user action item for a message (assistant to-dos). AI seeds them; the user owns them. */
+export interface TodoRow {
+  id: string
+  message_id: string
+  user_id: string
+  text: string
+  done: number
+  position: number
+  source: string // 'ai' | 'user'
+  created_at: number
+  updated_at: number
 }
 
 export interface MessageFlags {

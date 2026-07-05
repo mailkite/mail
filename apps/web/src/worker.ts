@@ -24,6 +24,10 @@ export interface Env {
   ADDRESS_MODE?: string
   OPEN_REGISTRATION?: string
   ENC_PUBLIC_KEY?: string
+  ANTHROPIC_API_KEY?: string
+  ANTHROPIC_MODEL?: string
+  GEMINI_API_KEY?: string
+  GEMINI_MODEL?: string
 }
 
 // Cached per isolate. Prefer setting SESSION_SECRET as a wrangler secret in
@@ -72,6 +76,10 @@ export default {
         addressMode: env.ADDRESS_MODE,
         openRegistration: env.OPEN_REGISTRATION,
         encPublicKey: env.ENC_PUBLIC_KEY,
+        anthropicApiKey: env.ANTHROPIC_API_KEY,
+        anthropicModel: env.ANTHROPIC_MODEL,
+        geminiApiKey: env.GEMINI_API_KEY,
+        geminiModel: env.GEMINI_MODEL,
       },
     })
     return app.fetch(request)

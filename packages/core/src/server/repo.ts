@@ -1,6 +1,6 @@
 import type {
   WebhookPayload, MessageRow, MessageFlags, ListOptions, UserRow, UserStatus, Role, SenderAccountRow,
-  Actor, AddressRow, TeamRow,
+  Actor, AddressRow, TeamRow, TodoRow,
 } from '../types'
 import { mapWebhookToMessage } from '../webhook/map'
 import type { SqlDriver, BlobStore } from './ports'
@@ -120,16 +120,96 @@ export class MailRepo {
       params.push(term, term, term)
     }
     params.push(opts.limit ?? 100)
-    return this.sql.all<MessageRow>(
-      `SELECT * FROM messages WHERE ${where.join(' AND ')} ORDER BY received_at DESC LIMIT ?`,
+    // Collapse to one row per thread: the newest matching message represents the
+    // conversation and `thread_count` is how many messages match the same filter
+    // (so inbound + our sent replies count together — see storeOutbound). SQLite
+    // quirk we lean on: when a SELECT has a bare `*` alongside MAX(), the bare
+    // columns are taken from the row holding that max — i.e. `*` is the newest
+    // message. `_mx` is that max timestamp; we sort by it and then drop it.
+    const rows = await this.sql.all<MessageRow & { _mx: number }>(
+      `SELECT *, COUNT(*) AS thread_count, MAX(received_at) AS _mx
+         FROM messages WHERE ${where.join(' AND ')}
+         GROUP BY thread_id
+         ORDER BY _mx DESC
+         LIMIT ?`,
       params,
     )
+    return rows.map(({ _mx, ...m }) => m)
   }
 
   async getMessage(actor: Actor, id: string): Promise<MessageRow | undefined> {
     const scope = this.scopePredicate(actor)
     // Per-object scope: never "load by id then check" (closes IDOR).
     return this.sql.get<MessageRow>(`SELECT * FROM messages WHERE id = ? AND ${scope.sql}`, [id, ...scope.params])
+  }
+
+  /** Every message in `id`'s thread, oldest→newest, for the conversation view.
+   *  Scopes twice: the anchor is authorized through the Actor first, then the
+   *  thread query re-applies the predicate (a thread's messages share the same
+   *  mailbox, so an authorized anchor implies an authorized thread). */
+  async getThread(actor: Actor, id: string): Promise<MessageRow[]> {
+    const anchor = await this.getMessage(actor, id)
+    if (!anchor) return []
+    const scope = this.scopePredicate(actor)
+    return this.sql.all<MessageRow>(
+      `SELECT * FROM messages WHERE thread_id = ? AND ${scope.sql} ORDER BY received_at ASC`,
+      [anchor.thread_id, ...scope.params],
+    )
+  }
+
+  /** Persist a message we sent (a reply, or a new thread) into the own store so
+   *  it threads alongside received mail. The thread + ACL address are inherited
+   *  from the message being replied to; a bare compose starts its own thread and
+   *  anchors on the sending address. Mirrors ingest's thread bookkeeping. */
+  async storeOutbound(
+    actor: Actor,
+    input: {
+      id: string
+      inReplyTo?: string
+      from: string
+      to: string
+      subject: string | null
+      text?: string | null
+      html?: string | null
+      now: number
+      encryptBody?: (t: string | null | undefined) => Promise<string | null>
+    },
+  ): Promise<MessageRow | undefined> {
+    let threadId = input.id
+    let addressId: string | null = null
+    let subject = input.subject
+    if (input.inReplyTo) {
+      const parent = await this.getMessage(actor, input.inReplyTo)
+      if (parent) {
+        threadId = parent.thread_id
+        addressId = (parent as unknown as { address_id: string | null }).address_id ?? null
+        subject = subject ?? parent.subject
+      }
+    }
+    if (addressId === null) {
+      const fromAddr = (input.from.match(/<([^>]+)>/)?.[1] ?? input.from).trim()
+      addressId = (await this.getAddressByName(fromAddr))?.id ?? null
+    }
+
+    const textBody = input.encryptBody ? await input.encryptBody(input.text) : (input.text ?? null)
+    const htmlBody = input.encryptBody ? await input.encryptBody(input.html) : (input.html ?? null)
+
+    await this.sql.run(
+      `INSERT OR IGNORE INTO threads (id, subject, last_received_at, message_count) VALUES (?, ?, ?, 0)`,
+      [threadId, subject, input.now],
+    )
+    await this.sql.run(
+      `INSERT OR IGNORE INTO messages
+         (id, thread_id, direction, from_addr, to_addr, subject, text_body, html_body,
+          spf, dkim, dmarc, spam, unread, starred, archived, received_at, address_id)
+       VALUES (?, ?, 'outbound', ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, 0, 0, 0, ?, ?)`,
+      [input.id, threadId, input.from, input.to, subject, textBody, htmlBody, input.now, addressId],
+    )
+    await this.sql.run(
+      `UPDATE threads SET last_received_at = ?, message_count = message_count + 1 WHERE id = ?`,
+      [input.now, threadId],
+    )
+    return this.getMessage(actor, input.id)
   }
 
   // ---- Provisioned send-as addresses (team-wide, no ACL) -------------------
@@ -179,6 +259,24 @@ export class MailRepo {
     const scope = this.scopePredicate(actor)
     params.push(id, ...scope.params)
     await this.sql.run(`UPDATE messages SET ${sets.join(', ')} WHERE id = ? AND ${scope.sql}`, params)
+  }
+
+  /** Apply flags to every message in a thread — used when archiving from the
+   *  collapsed list, so filing a conversation files all of it (not just the
+   *  representative message). Scoped like updateFlags. */
+  async updateThreadFlags(actor: Actor, threadId: string, flags: MessageFlags): Promise<void> {
+    const sets: string[] = []
+    const params: unknown[] = []
+    for (const k of FLAG_COLUMNS) {
+      if (flags[k] !== undefined) {
+        sets.push(`${k} = ?`)
+        params.push(flags[k] ? 1 : 0)
+      }
+    }
+    if (sets.length === 0) return
+    const scope = this.scopePredicate(actor)
+    params.push(threadId, ...scope.params)
+    await this.sql.run(`UPDATE messages SET ${sets.join(', ')} WHERE thread_id = ? AND ${scope.sql}`, params)
   }
 
   // ---- ACL: addresses, teams, grants (docs/acl.md) -------------------------
@@ -269,6 +367,69 @@ export class MailRepo {
       'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
       [key, value],
     )
+  }
+
+  // ---- Assistant: AI cache + to-dos ----------------------------------------
+  // Cache is content-derived (keyed by message + kind), so it's shared across users; the ROUTE
+  // enforces ACL by loading the message through the Actor before it ever reads/writes here.
+
+  async getAiCache(messageId: string, kind: string): Promise<{ content: string; model: string | null } | undefined> {
+    return this.sql.get<{ content: string; model: string | null }>(
+      'SELECT content, model FROM ai_cache WHERE message_id = ? AND kind = ?',
+      [messageId, kind],
+    )
+  }
+
+  async putAiCache(messageId: string, kind: string, content: string, model: string | null, now: number): Promise<void> {
+    await this.sql.run(
+      `INSERT INTO ai_cache (message_id, kind, content, model, created_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(message_id, kind) DO UPDATE SET content = excluded.content, model = excluded.model, created_at = excluded.created_at`,
+      [messageId, kind, content, model, now],
+    )
+  }
+
+  // To-dos are user-scoped: every read/write filters by user_id so one member never sees or edits
+  // another's list, even for a shared mailbox.
+  async listTodos(userId: string, messageId: string): Promise<TodoRow[]> {
+    return this.sql.all<TodoRow>(
+      'SELECT * FROM todos WHERE user_id = ? AND message_id = ? ORDER BY position ASC, created_at ASC',
+      [userId, messageId],
+    )
+  }
+
+  async createTodo(t: TodoRow): Promise<void> {
+    await this.sql.run(
+      `INSERT INTO todos (id, message_id, user_id, text, done, position, source, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [t.id, t.message_id, t.user_id, t.text, t.done, t.position, t.source, t.created_at, t.updated_at],
+    )
+  }
+
+  async getTodo(userId: string, id: string): Promise<TodoRow | undefined> {
+    return this.sql.get<TodoRow>('SELECT * FROM todos WHERE id = ? AND user_id = ?', [id, userId])
+  }
+
+  async updateTodo(userId: string, id: string, patch: { text?: string; done?: boolean }, now: number): Promise<TodoRow | undefined> {
+    const sets: string[] = ['updated_at = ?']
+    const params: unknown[] = [now]
+    if (patch.text !== undefined) { sets.push('text = ?'); params.push(patch.text) }
+    if (patch.done !== undefined) { sets.push('done = ?'); params.push(patch.done ? 1 : 0) }
+    params.push(id, userId)
+    await this.sql.run(`UPDATE todos SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`, params)
+    return this.getTodo(userId, id)
+  }
+
+  async deleteTodo(userId: string, id: string): Promise<void> {
+    await this.sql.run('DELETE FROM todos WHERE id = ? AND user_id = ?', [id, userId])
+  }
+
+  /** The next free position at the end of a user's list for a message. */
+  async nextTodoPosition(userId: string, messageId: string): Promise<number> {
+    const row = await this.sql.get<{ n: number | null }>(
+      'SELECT MAX(position) AS n FROM todos WHERE user_id = ? AND message_id = ?',
+      [userId, messageId],
+    )
+    return (row?.n ?? -1) + 1
   }
 
   // ---- Users & roles -------------------------------------------------------

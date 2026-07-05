@@ -37,6 +37,20 @@ async function putJSON<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T
 }
 
+async function patchJSON<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${base}${path}`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const e = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new Error(e.error ?? `${res.status} ${res.statusText}`)
+  }
+  return (await res.json()) as T
+}
+
 async function del(path: string, body?: unknown): Promise<void> {
   const res = await fetch(`${base}${path}`, {
     method: 'DELETE',
@@ -124,6 +138,25 @@ export interface AppConfig {
   appName: string
   logoUrl: string
   openRegistration: boolean
+  assistant: boolean
+  assistantProvider: string
+}
+
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface Todo {
+  id: string
+  message_id: string
+  user_id: string
+  text: string
+  done: number
+  position: number
+  source: string
+  created_at: number
+  updated_at: number
 }
 
 export const api = {
@@ -200,6 +233,10 @@ export const api = {
 
   getMessage: (id: string) => getJSON<{ message: MessageRow }>(`/api/messages/${id}`).then((r) => r.message),
 
+  // The full conversation (inbound + our sent replies), oldest first.
+  getThread: (id: string) =>
+    getJSON<{ messages: MessageRow[] }>(`/api/messages/${id}/thread`).then((r) => r.messages),
+
   identities: () => getJSON<{ identities: string[]; default: string }>('/api/identities'),
 
   // ---- registration / claim a personal mailbox -----------------------------
@@ -229,7 +266,24 @@ export const api = {
     return (await res.json() as { message: MessageRow }).message
   },
 
-  send: async (body: SendBody): Promise<{ id: string; status: string }> => {
+  // ---- AI assistant (gated; 503 when no provider is configured) ------------
+  aiSummary: (messageId: string) =>
+    postJSON<{ summary: string }>('/api/ai/summary', { messageId }).then((r) => r.summary),
+  aiSmartReplies: (messageId: string) =>
+    postJSON<{ replies: string[] }>('/api/ai/smart-replies', { messageId }).then((r) => r.replies),
+  aiAssistant: (messageId: string | undefined, messages: ChatTurn[]) =>
+    postJSON<{ reply: string }>('/api/ai/assistant', { messageId, messages }).then((r) => r.reply),
+
+  // ---- Persisted to-dos (AI-seeded, user-owned) ----------------------------
+  listTodos: (messageId: string) =>
+    getJSON<{ todos: Todo[] }>(`/api/todos?messageId=${encodeURIComponent(messageId)}`).then((r) => r.todos),
+  addTodo: (messageId: string, text: string) =>
+    postJSON<{ todo: Todo }>('/api/todos', { messageId, text }).then((r) => r.todo),
+  updateTodo: (id: string, patch: { text?: string; done?: boolean }) =>
+    patchJSON<{ todo: Todo }>(`/api/todos/${id}`, patch).then((r) => r.todo),
+  deleteTodo: (id: string) => del(`/api/todos/${id}`),
+
+  send: async (body: SendBody): Promise<{ id: string; status: string; message?: MessageRow }> => {
     const res = await fetch(`${base}/api/send`, {
       method: 'POST',
       credentials: 'include',
@@ -240,6 +294,17 @@ export const api = {
       const e = (await res.json().catch(() => ({}))) as { error?: string }
       throw new Error(e.error ?? `send failed: ${res.status}`)
     }
-    return (await res.json()) as { id: string; status: string }
+    return (await res.json()) as { id: string; status: string; message?: MessageRow }
+  },
+
+  // Thread-wide flags — files/stars the whole conversation from the collapsed list.
+  updateThreadFlags: async (threadId: string, flags: MessageFlags): Promise<void> => {
+    const res = await fetch(`${base}/api/threads/${threadId}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(flags),
+    })
+    if (!res.ok) throw new Error(`thread patch failed: ${res.status}`)
   },
 }

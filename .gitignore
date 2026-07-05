@@ -27,3 +27,6 @@ data/
 
 # turborepo cache
 .turbo/
+
+# TypeScript incremental build info
+*.tsbuildinfo

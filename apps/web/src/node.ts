@@ -34,6 +34,10 @@ const env = {
   addressMode: process.env.ADDRESS_MODE,
   openRegistration: process.env.OPEN_REGISTRATION,
   encPublicKey: process.env.ENC_PUBLIC_KEY,
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  anthropicModel: process.env.ANTHROPIC_MODEL,
+  geminiApiKey: process.env.GEMINI_API_KEY,
+  geminiModel: process.env.GEMINI_MODEL,
 }
 if (!env.webhookSecret) console.warn('MAILKITE_WEBHOOK_SECRET unset — inbound disabled until set in Settings')
 if (!env.apiKey) console.warn('MAILKITE_API_KEY unset — sending disabled until set in Settings')

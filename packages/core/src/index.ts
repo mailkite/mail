@@ -5,6 +5,7 @@ export type {
   MessageRow,
   MessageFlags,
   ListOptions,
+  TodoRow,
   Folder,
 } from './types'
 export { verifyWebhookSignature } from './webhook/verify'

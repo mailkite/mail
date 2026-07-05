@@ -133,4 +133,30 @@ CREATE TABLE IF NOT EXISTS address_grants (
 );
 CREATE INDEX IF NOT EXISTS idx_grants_user ON address_grants (user_id);
 CREATE INDEX IF NOT EXISTS idx_grants_team ON address_grants (team_id);
+
+-- Assistant persistence (see migration 0006). ai_cache: content-derived AI output (summary,
+-- smart replies) keyed by message so opens don't recompute. todos: per-user action items the
+-- AI seeds once and the user then owns (check/edit/add/delete). ACL enforced at the route.
+CREATE TABLE IF NOT EXISTS ai_cache (
+  message_id TEXT NOT NULL,
+  kind       TEXT NOT NULL,
+  content    TEXT NOT NULL,
+  model      TEXT,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (message_id, kind)
+);
+
+CREATE TABLE IF NOT EXISTS todos (
+  id         TEXT PRIMARY KEY,
+  message_id TEXT NOT NULL,
+  user_id    TEXT NOT NULL,
+  text       TEXT NOT NULL,
+  done       INTEGER NOT NULL DEFAULT 0,
+  position   INTEGER NOT NULL DEFAULT 0,
+  source     TEXT NOT NULL DEFAULT 'user',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_todos_msg_user ON todos (message_id, user_id, position);
+CREATE INDEX IF NOT EXISTS idx_todos_user ON todos (user_id);
 `

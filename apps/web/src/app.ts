@@ -1,7 +1,7 @@
 import { Hono, type Context, type Next } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { verifyWebhookSignature } from '@mailkite/core'
-import type { WebhookPayload } from '@mailkite/core'
+import type { WebhookPayload, MessageRow } from '@mailkite/core'
 import {
   MailRepo,
   sendViaMailkite,
@@ -14,8 +14,18 @@ import {
   decodeGoogleIdToken,
   exchangeGitHubCode,
   fetchGitHubIdentity,
+  makeRunner,
+  hasProvider,
+  providerLabel,
+  summarize,
+  smartReplies,
+  extractTodos,
+  assistantChat,
 } from '@mailkite/core/server'
-import type { SendInput, SendResult, SessionPayload, UserRow } from '@mailkite/core/server'
+import type {
+  SendInput, SendResult, SessionPayload, UserRow,
+  AiCredentials, AiRunner, ApiMessage, MessageContext,
+} from '@mailkite/core/server'
 // At-rest encryption comes from the shared MailKite SDK (isomorphic Web Crypto — same envelope every
 // SDK produces/consumes), not a local port. `encrypt` throws a human-readable error on a bad/too-small
 // key, so a probe-encrypt doubles as key validation for the admin endpoints.
@@ -44,6 +54,10 @@ export interface AppEnvConfig {
   addressMode?: string
   openRegistration?: string
   encPublicKey?: string
+  anthropicApiKey?: string
+  anthropicModel?: string
+  geminiApiKey?: string
+  geminiModel?: string
 }
 
 export interface AppDeps {
@@ -52,6 +66,9 @@ export interface AppDeps {
   sessionSecret: string
   fetchAttachment?: (url: string) => Promise<Uint8Array>
   sendEmail?: (input: SendInput) => Promise<SendResult>
+  // Injectable model runner (mirrors sendEmail) — tests/local can stub the AI with no network.
+  // When set it overrides provider selection; the config gate still decides whether AI is exposed.
+  aiComplete?: AiRunner
 }
 
 type AppEnv = { Variables: { user: SessionPayload } }
@@ -72,6 +89,10 @@ const CONFIG_ITEMS = [
   { key: 'LOGO_URL', secret: false, gates: 'branding', env: (e: AppEnvConfig) => e.logoUrl },
   { key: 'ADDRESS_MODE', secret: false, gates: 'inbound', env: (e: AppEnvConfig) => e.addressMode },
   { key: 'OPEN_REGISTRATION', secret: false, gates: 'signups', env: (e: AppEnvConfig) => e.openRegistration },
+  { key: 'ANTHROPIC_API_KEY', secret: true, gates: 'assistant', env: (e: AppEnvConfig) => e.anthropicApiKey },
+  { key: 'ANTHROPIC_MODEL', secret: false, gates: 'assistant', env: (e: AppEnvConfig) => e.anthropicModel },
+  { key: 'GEMINI_API_KEY', secret: true, gates: 'assistant', env: (e: AppEnvConfig) => e.geminiApiKey },
+  { key: 'GEMINI_MODEL', secret: false, gates: 'assistant', env: (e: AppEnvConfig) => e.geminiModel },
 ] as const
 // ENC_PUBLIC_KEY (the account's RSA SPKI public key for at-rest encryption) is deliberately NOT in
 // CONFIG_ITEMS — it has dedicated /api/admin/encryption endpoints that validate the key and surface
@@ -105,6 +126,22 @@ export function createApp(deps: AppDeps) {
   const openRegEnabled = async (): Promise<boolean> => {
     const v = (await resolve('OPEN_REGISTRATION', deps.env.openRegistration)).toLowerCase()
     return v === 'on' || v === 'true' || v === '1'
+  }
+
+  /** Resolve the account's AI credentials (env → saved settings). */
+  const aiCredsOf = async (): Promise<AiCredentials> => ({
+    anthropicKey: await resolve('ANTHROPIC_API_KEY', deps.env.anthropicApiKey),
+    anthropicModel: await resolve('ANTHROPIC_MODEL', deps.env.anthropicModel),
+    geminiKey: await resolve('GEMINI_API_KEY', deps.env.geminiApiKey),
+    geminiModel: await resolve('GEMINI_MODEL', deps.env.geminiModel),
+  })
+
+  /** The bound model runner, or null when the assistant is unconfigured (routes then 503).
+   *  An injected `deps.aiComplete` (tests/local) takes precedence over provider selection. */
+  const aiRunnerOf = async (): Promise<AiRunner | null> => {
+    if (deps.aiComplete) return deps.aiComplete
+    const creds = await aiCredsOf()
+    return hasProvider(creds) ? makeRunner(creds) : null
   }
 
   const userOf = (c: Context) => verifySession(getCookie(c, COOKIE), deps.sessionSecret)
@@ -150,6 +187,10 @@ export function createApp(deps: AppDeps) {
     const appName = (await resolve('APP_NAME', deps.env.appName)) || 'MailKite Mail'
     const logoUrl = await resolve('LOGO_URL', deps.env.logoUrl)
     const openRegistration = await openRegEnabled()
+    // Assistant capability + the backing provider's display name (for the panel's badge).
+    const aiCreds = await aiCredsOf()
+    const assistant = Boolean(deps.aiComplete) || hasProvider(aiCreds)
+    const assistantProvider = deps.aiComplete ? 'AI' : providerLabel(aiCreds)
     // Client ids are public (the SPA builds the consent URL with them); the
     // secrets never leave the server.
     return c.json({
@@ -162,6 +203,8 @@ export function createApp(deps: AppDeps) {
       appName,
       logoUrl,
       openRegistration,
+      assistant,
+      assistantProvider,
     })
   })
 
@@ -608,6 +651,22 @@ export function createApp(deps: AppDeps) {
     return m ? c.json({ message: m }) : c.json({ error: 'not found' }, 404)
   })
 
+  // The full conversation for a message — inbound + our sent replies, oldest first.
+  app.get('/api/messages/:id/thread', requireAuth, async (c) => {
+    const messages = await deps.repo.getThread(actorOf(c), c.req.param('id')!)
+    return messages.length ? c.json({ messages }) : c.json({ error: 'not found' }, 404)
+  })
+
+  // Thread-wide flags — archiving from the collapsed list files the whole conversation.
+  app.patch('/api/threads/:id', requireAuth, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as
+      | { unread?: boolean; starred?: boolean; archived?: boolean }
+      | null
+    if (!body) return c.json({ error: 'invalid body' }, 400)
+    await deps.repo.updateThreadFlags(actorOf(c), c.req.param('id')!, body)
+    return c.json({ ok: true })
+  })
+
   app.patch('/api/messages/:id', requireAuth, async (c) => {
     const body = (await c.req.json().catch(() => null)) as
       | { unread?: boolean; starred?: boolean; archived?: boolean }
@@ -626,6 +685,150 @@ export function createApp(deps: AppDeps) {
     const dflt = (await resolve('MAILKITE_FROM', deps.env.from)) || granted[0] || provisioned[0] || ''
     const identities = [...new Set([dflt, ...granted, ...provisioned].filter(Boolean))]
     return c.json({ identities, default: dflt })
+  })
+
+  // ---- AI assistant (auth required, ACL-scoped; 503 when no provider) -------
+  // Every route resolves the message through the Actor (same scope as GET /api/messages/:id) and
+  // gates on a configured provider (mirrors the sending gate). At-rest encryption note: when
+  // ENC_PUBLIC_KEY is set the server holds only ciphertext, so the body is withheld from the model
+  // (subject + sender still work); see docs/data-model.md.
+  const aiMessageContext = async (c: Context<AppEnv>, id: string): Promise<MessageContext | null> => {
+    const m = await deps.repo.getMessage(actorOf(c), id)
+    if (!m) return null
+    const encOn = Boolean(await resolve('ENC_PUBLIC_KEY', deps.env.encPublicKey))
+    return { from: m.from_addr, subject: m.subject, body: encOn ? null : m.text_body }
+  }
+
+  const AI_UNSET = 'assistant not configured (set ANTHROPIC_API_KEY or GEMINI_API_KEY)'
+
+  // Cached generation: ACL-check the message, return the cached result if present (even if the
+  // provider is now off), otherwise generate once and cache it. `generate` returns the string to
+  // store (summary text, or JSON for lists).
+  const cachedAi = async (
+    c: Context<AppEnv>,
+    messageId: string,
+    kind: string,
+    generate: (run: AiRunner, ctx: MessageContext) => Promise<string>,
+  ): Promise<{ ok: true; content: string } | { ok: false; res: Response }> => {
+    const ctx = await aiMessageContext(c, messageId)
+    if (!ctx) return { ok: false, res: c.json({ error: 'not found' }, 404) }
+    const cached = await deps.repo.getAiCache(messageId, kind)
+    if (cached) return { ok: true, content: cached.content }
+    const run = await aiRunnerOf()
+    if (!run) return { ok: false, res: c.json({ error: AI_UNSET }, 503) }
+    try {
+      const content = await generate(run, ctx)
+      await deps.repo.putAiCache(messageId, kind, content, null, Date.now())
+      return { ok: true, content }
+    } catch (e) {
+      return { ok: false, res: c.json({ error: e instanceof Error ? e.message : 'assistant failed' }, 502) }
+    }
+  }
+
+  app.post('/api/ai/summary', requireAuth, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { messageId?: string } | null
+    if (!body?.messageId) return c.json({ error: 'messageId required' }, 400)
+    const r = await cachedAi(c, body.messageId, 'summary', (run, ctx) => summarize(run, ctx))
+    return r.ok ? c.json({ summary: r.content }) : r.res
+  })
+
+  app.post('/api/ai/smart-replies', requireAuth, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { messageId?: string } | null
+    if (!body?.messageId) return c.json({ error: 'messageId required' }, 400)
+    const r = await cachedAi(c, body.messageId, 'smart_replies', async (run, ctx) =>
+      JSON.stringify(await smartReplies(run, ctx)),
+    )
+    if (!r.ok) return r.res
+    let replies: string[] = []
+    try { const p = JSON.parse(r.content); if (Array.isArray(p)) replies = p } catch { /* stale cache */ }
+    return c.json({ replies })
+  })
+
+  // Chat: a running user/assistant history grounded in an optional message. History turns are
+  // validated (role + string content) before they reach the model.
+  app.post('/api/ai/assistant', requireAuth, async (c) => {
+    const run = await aiRunnerOf()
+    if (!run) return c.json({ error: AI_UNSET }, 503)
+    const body = (await c.req.json().catch(() => null)) as
+      | { messageId?: string; messages?: { role?: string; content?: string }[] }
+      | null
+    const messages: ApiMessage[] = (Array.isArray(body?.messages) ? body!.messages : [])
+      .filter((m): m is { role: string; content: string } => typeof m?.content === 'string' && !!m.content.trim())
+      .map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
+    if (messages.length === 0) return c.json({ error: 'messages required' }, 400)
+    let ctx: MessageContext | null = null
+    if (body?.messageId) {
+      ctx = await aiMessageContext(c, body.messageId)
+      if (!ctx) return c.json({ error: 'not found' }, 404)
+    }
+    try {
+      return c.json({ reply: await assistantChat(run, ctx, messages) })
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : 'assistant failed' }, 502)
+    }
+  })
+
+  // ---- To-dos (per-user, persisted; AI seeds once, user then owns the list) -
+  // GET auto-seeds from the AI the first time a message is opened (when a provider is available),
+  // then persists; after that it's the user's list to check off, edit, add to, and delete.
+  app.get('/api/todos', requireAuth, async (c) => {
+    const messageId = c.req.query('messageId')
+    if (!messageId) return c.json({ error: 'messageId required' }, 400)
+    const actor = actorOf(c)
+    if (!(await deps.repo.getMessage(actor, messageId))) return c.json({ error: 'not found' }, 404)
+
+    let todos = await deps.repo.listTodos(actor.userId, messageId)
+    if (todos.length === 0) {
+      const seedKind = `todos_seeded:${actor.userId}`
+      const alreadySeeded = await deps.repo.getAiCache(messageId, seedKind)
+      const run = alreadySeeded ? null : await aiRunnerOf()
+      if (run) {
+        const ctx = await aiMessageContext(c, messageId)
+        try {
+          const items = ctx ? await extractTodos(run, ctx) : []
+          const now = Date.now()
+          for (let i = 0; i < items.length; i++) {
+            await deps.repo.createTodo({
+              id: `td_${crypto.randomUUID()}`, message_id: messageId, user_id: actor.userId,
+              text: items[i], done: 0, position: i, source: 'ai', created_at: now, updated_at: now,
+            })
+          }
+          await deps.repo.putAiCache(messageId, seedKind, '1', null, now) // mark seeded (even if empty)
+          todos = await deps.repo.listTodos(actor.userId, messageId)
+        } catch { /* leave empty — the user can still add items by hand */ }
+      }
+    }
+    return c.json({ todos })
+  })
+
+  app.post('/api/todos', requireAuth, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { messageId?: string; text?: string } | null
+    if (!body?.messageId || !body.text?.trim()) return c.json({ error: 'messageId and text required' }, 400)
+    const actor = actorOf(c)
+    if (!(await deps.repo.getMessage(actor, body.messageId))) return c.json({ error: 'not found' }, 404)
+    const now = Date.now()
+    const todo = {
+      id: `td_${crypto.randomUUID()}`, message_id: body.messageId, user_id: actor.userId,
+      text: body.text.trim(), done: 0, position: await deps.repo.nextTodoPosition(actor.userId, body.messageId),
+      source: 'user', created_at: now, updated_at: now,
+    }
+    await deps.repo.createTodo(todo)
+    return c.json({ todo }, 201)
+  })
+
+  app.patch('/api/todos/:id', requireAuth, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { text?: string; done?: boolean } | null
+    const patch: { text?: string; done?: boolean } = {}
+    if (typeof body?.text === 'string') { if (!body.text.trim()) return c.json({ error: 'text cannot be empty' }, 400); patch.text = body.text.trim() }
+    if (typeof body?.done === 'boolean') patch.done = body.done
+    if (patch.text === undefined && patch.done === undefined) return c.json({ error: 'nothing to update' }, 400)
+    const updated = await deps.repo.updateTodo(actorOf(c).userId, c.req.param('id')!, patch, Date.now())
+    return updated ? c.json({ todo: updated }) : c.json({ error: 'not found' }, 404)
+  })
+
+  app.delete('/api/todos/:id', requireAuth, async (c) => {
+    await deps.repo.deleteTodo(actorOf(c).userId, c.req.param('id')!)
+    return c.json({ ok: true })
   })
 
   // ---- Registration: claim a personal mailbox ------------------------------
@@ -753,7 +956,31 @@ export function createApp(deps: AppDeps) {
         apiBase,
         apiKey,
       )
-      return c.json(result, 201)
+      // Persist what we sent so it threads next to received mail (no separate Sent
+      // store — "Sent" is just a filter over these). Encrypt the body at rest with
+      // the same key ingest uses. A store failure must not fail the send (the mail
+      // already went out), so we swallow it and still return the send result.
+      let message: MessageRow | undefined
+      try {
+        const encKeyPem = await resolve('ENC_PUBLIC_KEY', deps.env.encPublicKey)
+        const encryptBody = encKeyPem
+          ? (t: string | null | undefined) => (t == null || t === '' ? Promise.resolve(t ?? null) : mkEncrypt(t, encKeyPem))
+          : undefined
+        message = await deps.repo.storeOutbound(actor, {
+          id: result.id,
+          inReplyTo: body.inReplyTo,
+          from,
+          to: Array.isArray(body.to) ? body.to.join(', ') : body.to,
+          subject: body.subject,
+          text: body.text,
+          html: body.html,
+          now: Date.now(),
+          encryptBody,
+        })
+      } catch {
+        /* mail sent; own-store write is best-effort */
+      }
+      return c.json({ ...result, message }, 201)
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : 'send failed' }, 502)
     }

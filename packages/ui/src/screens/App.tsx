@@ -31,7 +31,7 @@ function Splash({ error, onRetry }: { error?: string | null; onRetry?: () => voi
  */
 const FALLBACK_CONFIG: AppConfig = {
   sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '', githubClientId: '',
-  appName: 'MailKite Mail', logoUrl: '', openRegistration: false,
+  appName: 'MailKite Mail', logoUrl: '', openRegistration: false, assistant: false, assistantProvider: '',
 }
 const GOOGLE_CALLBACK = '/auth/google/callback'
 const GITHUB_CALLBACK = '/auth/github/callback'

@@ -40,4 +40,7 @@ function ResizableHandle({
   )
 }
 
-export { ResizableHandle, ResizablePanel, ResizablePanelGroup }
+// Layout persistence: save/restore a group's panel sizes across reloads (localStorage-backed).
+const useDefaultLayout = ResizablePrimitive.useDefaultLayout
+
+export { ResizableHandle, ResizablePanel, ResizablePanelGroup, useDefaultLayout }

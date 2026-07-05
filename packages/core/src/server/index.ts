@@ -11,7 +11,12 @@ export { exchangeGoogleCode, decodeGoogleIdToken } from './google'
 export type { GoogleIdentity } from './google'
 export { exchangeGitHubCode, fetchGitHubIdentity } from './github'
 export type { GitHubIdentity } from './github'
+// AI assistant: provider abstraction (Claude primary, Gemini fallback) + the four task helpers.
+export { runComplete as aiRunComplete, makeRunner, hasProvider, providerLabel, ProviderUnavailableError, ProviderAuthError } from './ai'
+export type { AiCredentials, AiRunner, AiRunInput, AiRunResult, ApiMessage } from './ai'
+export { summarize, smartReplies, extractTodos, assistantChat } from './ai/tasks'
+export type { MessageContext } from './ai/tasks'
 export type {
   UserRow, AuthProvider, UserStatus, Role, SenderAccountRow,
-  Actor, AddressRow, TeamRow, TeamMemberRow, AddressGrantRow,
+  Actor, AddressRow, TeamRow, TeamMemberRow, AddressGrantRow, TodoRow,
 } from '../types'

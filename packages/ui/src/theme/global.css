@@ -475,7 +475,41 @@ html[data-theme="light"] .brand-glow {
   );
 }
 
+/* Optimistic reply — slides/fades into the thread the moment Send is pressed. */
+.reply-in {
+  animation: reply-in 0.28s ease-out both;
+}
+@keyframes reply-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* The "Sent" check pops in so the confirmation registers as a beat. */
+.sent-pop {
+  animation: sent-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes sent-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .reply-in,
+  .sent-pop {
+    animation: none;
+  }
   .flow-pipe::after {
     animation: none;
     display: none;
