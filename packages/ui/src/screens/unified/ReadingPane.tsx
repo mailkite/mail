@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
-import { ArrowLeft, Reply, Star } from 'lucide-react'
+import { ArrowLeft, LockKeyhole, Reply, Star } from 'lucide-react'
 import type { MessageRow } from '@mailkite/core'
-import { sanitizeEmailHtml } from '../../lib/sanitize'
+import { parseEnvelope } from '../../lib/envelope'
+import { EncryptedBody } from './EncryptedBody'
 import { senderName, fmtTime } from './util'
 
 /** Unified Light · Column 2 in "reading" mode — the open message + triage row. */
@@ -24,8 +25,8 @@ export function ReadingPane({
   onLater: (m: MessageRow) => void
   onAside: (m: MessageRow) => void
 }) {
-  const html = useMemo(
-    () => (message.html_body ? sanitizeEmailHtml(message.html_body) : null),
+  const encrypted = useMemo(
+    () => Boolean(parseEnvelope(message.html_body) || parseEnvelope(message.text_body)),
     [message],
   )
 
@@ -52,7 +53,12 @@ export function ReadingPane({
 
       <div className="flex-1 overflow-y-auto">
         <header className="border-b border-slate-200 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{message.subject || '(no subject)'}</h1>
+          <h1 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+            {encrypted && (
+              <LockKeyhole size={15} className="shrink-0 text-slate-400 dark:text-slate-500" aria-label="Encrypted at rest" />
+            )}
+            {message.subject || '(no subject)'}
+          </h1>
           <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             <span className="font-medium text-slate-800 dark:text-slate-200">{senderName(message.from_addr)}</span>{' '}
             <span className="text-slate-400 dark:text-slate-500">&lt;{message.from_addr}&gt;</span> → {message.to_addr}
@@ -69,11 +75,7 @@ export function ReadingPane({
           </div>
         </header>
         <div className="docs-prose mx-auto max-w-3xl px-6 py-6 text-slate-800 dark:text-slate-200">
-          {html ? (
-            <div dangerouslySetInnerHTML={{ __html: html }} />
-          ) : (
-            <pre className="whitespace-pre-wrap font-sans text-slate-800 dark:text-slate-200">{message.text_body}</pre>
-          )}
+          <EncryptedBody htmlBody={message.html_body} textBody={message.text_body} />
         </div>
       </div>
     </article>

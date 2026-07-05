@@ -97,6 +97,9 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   const [railCollapsed, setRailCollapsed] = useState(() => {
     try { return localStorage.getItem('mailkite.rail.collapsed') === '1' } catch { return false }
   })
+  const [assistantCollapsed, setAssistantCollapsed] = useState(() => {
+    try { return localStorage.getItem('mailkite.assistant.collapsed') === '1' } catch { return false }
+  })
   const isAdmin = user?.role === 'admin'
   const { resolved, setMode } = useTheme()
 
@@ -105,6 +108,7 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
   const savedDrafts = useRef<Record<string, string>>({}) // message id → unsent reply text
 
   useEffect(() => { try { localStorage.setItem('mailkite.rail.collapsed', railCollapsed ? '1' : '0') } catch { /* no-op */ } }, [railCollapsed])
+  useEffect(() => { try { localStorage.setItem('mailkite.assistant.collapsed', assistantCollapsed ? '1' : '0') } catch { /* no-op */ } }, [assistantCollapsed])
 
   // Below this width there's no room for rail + list + reading + assistant, so a
   // message forces the rail to icons; huge monitors keep the user's preference.
@@ -196,12 +200,17 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
     setReplyText('')
     goBackHistory() // /reply → /m/:id
   }
-  // Toggle rail. On a non-huge screen with a message open, "expand" means going
-  // back to the list (which reveals the menu); otherwise flip the preference.
+  // Toggle rail. With a message open on a screen too narrow to hold the expanded
+  // menu beside it, "expand" returns to the list (which frees the width) and shows
+  // the menu expanded. Use goFolder — not history.back() — so it lands on the list
+  // deterministically even after paging through several messages, which would
+  // otherwise step back onto another message and leave the menu collapsed. Wide
+  // screens just flip the preference in place, leaving the detail open.
   function toggleRail() {
-    if (selected && !isHuge()) { goBackHistory(); return }
+    if (selected && !isHuge()) { setRailCollapsed(false); goFolder(folder); return }
     setRailCollapsed((c) => !c)
   }
+  function toggleAssistant() { setAssistantCollapsed((c) => !c) }
 
   async function toggleStar(m: MessageRow) {
     const starred = m.starred ? 0 : 1
@@ -293,7 +302,7 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
       onAside={dismiss}
     />
   )
-  const assistantNode = <AssistantPanel message={selected} canSend={canSend} onSmartReply={(t) => selected && startReply(selected, t)} />
+  const assistantNode = <AssistantPanel message={selected} canSend={canSend} onSmartReply={(t) => selected && startReply(selected, t)} collapsed={assistantCollapsed} onToggle={toggleAssistant} />
   const drillKey = replying ? 'reply' : selected ? 'read' : 'list'
 
   return (
@@ -357,43 +366,38 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
             </aside>
 
             <div className="min-w-0 flex-1">
-              <ResizablePanelGroup key={drillKey} orientation="horizontal" className="h-full">
-                {replying && selected ? (
-                  <>
-                    <ResizablePanel id="reading" defaultSize="32%" minSize="22%">{readingNode}</ResizablePanel>
-                    <ResizableHandle withHandle />
-                    <ResizablePanel id="reply" defaultSize="44%" minSize="30%">
-                      <ReplyPanel
-                        to={selected.from_addr}
-                        fromDefault={selected.to_addr}
-                        subject={reSubject(selected.subject)}
-                        inReplyTo={selected.id}
-                        text={replyText}
-                        onText={setReplyText}
-                        onBack={goBackHistory}
-                        onSent={onReplySent}
-                      />
-                    </ResizablePanel>
-                    <ResizableHandle withHandle />
-                    <ResizablePanel id="assistant" defaultSize="24%" minSize="18%" maxSize="42%">{assistantNode}</ResizablePanel>
-                  </>
-                ) : selected ? (
-                  <>
-                    <ResizablePanel id="list" defaultSize="34%" minSize="22%">{listNode}</ResizablePanel>
-                    <ResizableHandle withHandle />
-                    <ResizablePanel id="reading" defaultSize="42%" minSize="28%">{readingNode}</ResizablePanel>
-                    <ResizableHandle withHandle />
-                    <ResizablePanel id="assistant" defaultSize="24%" minSize="18%" maxSize="42%">{assistantNode}</ResizablePanel>
-                  </>
-                ) : (
-                  <>
-                    <ResizablePanel id="list" defaultSize="68%" minSize="22%">{listNode}</ResizablePanel>
-                    <ResizableHandle withHandle />
-                    <ResizablePanel id="assistant" defaultSize="32%" minSize="18%" maxSize="42%">{assistantNode}</ResizablePanel>
-                  </>
-                )}
-              </ResizablePanelGroup>
+              {replying && selected ? (
+                <ResizablePanelGroup key={drillKey} orientation="horizontal" className="h-full">
+                  <ResizablePanel id="reading" defaultSize="42%" minSize="26%">{readingNode}</ResizablePanel>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel id="reply" defaultSize="58%" minSize="34%">
+                    <ReplyPanel
+                      to={selected.from_addr}
+                      fromDefault={selected.to_addr}
+                      subject={reSubject(selected.subject)}
+                      inReplyTo={selected.id}
+                      text={replyText}
+                      onText={setReplyText}
+                      onBack={goBackHistory}
+                      onSent={onReplySent}
+                    />
+                  </ResizablePanel>
+                </ResizablePanelGroup>
+              ) : selected ? (
+                <ResizablePanelGroup key={drillKey} orientation="horizontal" className="h-full">
+                  <ResizablePanel id="list" defaultSize="40%" minSize="24%">{listNode}</ResizablePanel>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel id="reading" defaultSize="60%" minSize="30%">{readingNode}</ResizablePanel>
+                </ResizablePanelGroup>
+              ) : (
+                <div className="h-full">{listNode}</div>
+              )}
             </div>
+
+            {/* Assistant — a collapsible right rail, mirroring the LeftRail. */}
+            <aside className={'shrink-0 border-l border-slate-200 transition-[width] duration-200 dark:border-slate-800 ' + (assistantCollapsed ? 'w-14' : 'w-80')}>
+              {assistantNode}
+            </aside>
           </div>
 
           {/* Fixed triage footer — spans the window, never scrolls. */}

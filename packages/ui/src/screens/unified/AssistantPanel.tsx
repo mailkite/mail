@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PanelRightClose, PanelRightOpen } from 'lucide-react'
 import type { MessageRow } from '@mailkite/core'
 import { senderName, snippet } from './util'
 
@@ -7,22 +8,61 @@ import { senderName, snippet } from './util'
  * The AI endpoints (summary / smart-replies / to-dos / chat) arrive in a later
  * phase; for now the panel shows a real message preview and lets a smart-reply
  * chip prefill the composer. Cards are tagged "soon" where they await a provider.
+ * Collapses to an icon rail (mirroring the LeftRail) via `collapsed`/`onToggle`.
  */
 export function AssistantPanel({
   message,
   canSend,
   onSmartReply,
+  collapsed,
+  onToggle,
 }: {
   message: MessageRow | null
   canSend?: boolean
   onSmartReply?: (text: string) => void
+  collapsed?: boolean
+  onToggle?: () => void
 }) {
+  if (collapsed) {
+    return (
+      <div className="flex h-full flex-col items-center gap-1 bg-gradient-to-b from-indigo-50/60 to-white p-2 dark:from-indigo-500/10 dark:to-slate-900">
+        <button
+          onClick={onToggle}
+          aria-label="Expand assistant"
+          title="Expand assistant"
+          className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+        >
+          <PanelRightOpen size={16} />
+        </button>
+        <div className="my-1 h-px w-6 bg-slate-200 dark:bg-slate-800" />
+        <button
+          onClick={onToggle}
+          aria-label="Assistant"
+          title="Assistant"
+          className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-[14px] text-white shadow-sm transition hover:brightness-110"
+        >
+          ✦
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full flex-col bg-gradient-to-b from-indigo-50/60 to-white dark:from-indigo-500/10 dark:to-slate-900">
       <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3 dark:border-slate-800">
         <div className="grid h-6 w-6 place-items-center rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 text-[12px] text-white">✦</div>
         <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">Assistant</span>
-        <span className="ml-auto rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700">on-device</span>
+        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700">on-device</span>
+        {onToggle && (
+          <button
+            onClick={onToggle}
+            aria-label="Collapse assistant"
+            title="Collapse assistant"
+            className="ml-auto grid h-7 w-7 place-items-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800"
+          >
+            <PanelRightClose size={15} />
+          </button>
+        )}
       </div>
 
       {!message ? (

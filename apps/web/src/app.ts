@@ -12,6 +12,8 @@ import {
   hashToken,
   exchangeGoogleCode,
   decodeGoogleIdToken,
+  parsePublicKey,
+  encryptString,
 } from '@mailkite/core/server'
 import type { SendInput, SendResult, SessionPayload, UserRow } from '@mailkite/core/server'
 
@@ -28,6 +30,7 @@ export interface AppEnvConfig {
   logoUrl?: string
   addressMode?: string
   openRegistration?: string
+  encPublicKey?: string
 }
 
 export interface AppDeps {
@@ -55,6 +58,9 @@ const CONFIG_ITEMS = [
   { key: 'ADDRESS_MODE', secret: false, gates: 'inbound', env: (e: AppEnvConfig) => e.addressMode },
   { key: 'OPEN_REGISTRATION', secret: false, gates: 'signups', env: (e: AppEnvConfig) => e.openRegistration },
 ] as const
+// ENC_PUBLIC_KEY (the account's RSA SPKI public key for at-rest encryption) is deliberately NOT in
+// CONFIG_ITEMS — it has dedicated /api/admin/encryption endpoints that validate the key and surface
+// its fingerprint. `resolve()` reads it env-first → saved independently of this list.
 
 // Localparts no one may self-claim.
 const RESERVED_LOCALPARTS = new Set([
@@ -453,6 +459,44 @@ export function createApp(deps: AppDeps) {
     return c.json({ ok: true })
   })
 
+  // ---- At-rest encryption (admin only) -------------------------------------
+  // Paste the account's RSA PUBLIC key to encrypt every future inbound body before it's stored;
+  // only the private-key holder can then read mail (zero-knowledge at rest). We validate the key
+  // and surface its fingerprint so the operator can confirm it, but we never hold the private key.
+  // Turning it off leaves already-encrypted history encrypted (we can't decrypt to re-plaintext it).
+  app.get('/api/admin/encryption', requireAdmin, async (c) => {
+    const pem = await resolve('ENC_PUBLIC_KEY', deps.env.encPublicKey)
+    const source = deps.env.encPublicKey ? 'env' : (await deps.repo.getSetting('ENC_PUBLIC_KEY')) ? 'saved' : 'unset'
+    if (!pem) return c.json({ enabled: false, source: 'unset' })
+    try {
+      const pk = await parsePublicKey(pem)
+      return c.json({ enabled: true, source, fingerprint: pk.fingerprint, alg: pk.alg })
+    } catch (e) {
+      // A stored key that no longer parses (corruption/format change): report it so the UI can warn.
+      return c.json({ enabled: true, source, invalid: true, error: e instanceof Error ? e.message : 'invalid key' })
+    }
+  })
+
+  app.put('/api/admin/encryption', requireAdmin, async (c) => {
+    const body = (await c.req.json().catch(() => null)) as { publicKey?: string } | null
+    if (!body?.publicKey?.trim()) return c.json({ error: 'publicKey (RSA SPKI PEM) required' }, 400)
+    if (deps.env.encPublicKey) return c.json({ error: 'ENC_PUBLIC_KEY is set via env — change it there, not here' }, 409)
+    let pk
+    try {
+      pk = await parsePublicKey(body.publicKey)
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : 'invalid public key' }, 400)
+    }
+    await deps.repo.setSetting('ENC_PUBLIC_KEY', body.publicKey.trim())
+    return c.json({ enabled: true, fingerprint: pk.fingerprint, alg: pk.alg })
+  })
+
+  app.delete('/api/admin/encryption', requireAdmin, async (c) => {
+    if (deps.env.encPublicKey) return c.json({ error: 'ENC_PUBLIC_KEY is set via env — unset it there' }, 409)
+    await deps.repo.setSetting('ENC_PUBLIC_KEY', '')
+    return c.json({ enabled: false })
+  })
+
   // ---- Inbound webhook (HMAC-verified, not session-gated) -------------------
   app.post('/webhook', async (c) => {
     const secret = await resolve('MAILKITE_WEBHOOK_SECRET', deps.env.webhookSecret)
@@ -475,7 +519,23 @@ export function createApp(deps: AppDeps) {
     if (payload?.type !== 'email.received') return c.json({ error: 'unsupported event' }, 422)
 
     const addressMode = (await resolve('ADDRESS_MODE', deps.env.addressMode)) === 'provisioned' ? 'provisioned' : 'open'
-    const { stored } = await deps.repo.ingestWebhookMessage(payload, { now: Date.now(), fetchAttachment, addressMode })
+
+    // At-rest encryption (opt-in): if the account configured a public key, encrypt bodies before
+    // they touch the store. Parse it once per delivery; a bad key must not silently store plaintext,
+    // so we fail the delivery (MailKite retries) rather than degrade the privacy guarantee.
+    const encKeyPem = await resolve('ENC_PUBLIC_KEY', deps.env.encPublicKey)
+    let encryptBody: ((t: string | null | undefined) => Promise<string | null>) | undefined
+    if (encKeyPem) {
+      let pk
+      try {
+        pk = await parsePublicKey(encKeyPem)
+      } catch (e) {
+        return c.json({ error: `at-rest encryption key invalid: ${e instanceof Error ? e.message : 'bad key'}` }, 500)
+      }
+      encryptBody = (t) => encryptString(pk, t)
+    }
+
+    const { stored } = await deps.repo.ingestWebhookMessage(payload, { now: Date.now(), fetchAttachment, addressMode, encryptBody })
     return c.json({ id: payload.id, stored }, stored ? 201 : 200)
   })
 

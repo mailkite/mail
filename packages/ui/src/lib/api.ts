@@ -23,6 +23,20 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T
 }
 
+async function putJSON<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${base}${path}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const e = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new Error(e.error ?? `${res.status} ${res.statusText}`)
+  }
+  return (await res.json()) as T
+}
+
 async function del(path: string, body?: unknown): Promise<void> {
   const res = await fetch(`${base}${path}`, {
     method: 'DELETE',
@@ -91,6 +105,15 @@ export interface SendBody {
   inReplyTo?: string
 }
 
+export interface EncryptionStatus {
+  enabled: boolean
+  source: 'env' | 'saved' | 'unset'
+  fingerprint?: string
+  alg?: string
+  invalid?: boolean
+  error?: string
+}
+
 export interface AppConfig {
   sending: boolean
   push: boolean
@@ -127,6 +150,12 @@ export const api = {
 
   // ---- admin config --------------------------------------------------------
   adminConfig: () => getJSON<{ items: AdminConfigItem[] }>('/api/admin/config').then((r) => r.items),
+
+  // ---- at-rest encryption --------------------------------------------------
+  encryption: () => getJSON<EncryptionStatus>('/api/admin/encryption'),
+  setEncryption: (publicKey: string) =>
+    putJSON<{ enabled: true; fingerprint: string; alg: string }>('/api/admin/encryption', { publicKey }),
+  disableEncryption: () => del('/api/admin/encryption'),
   saveConfig: (key: string, value: string) =>
     postJSON<{ ok: boolean }>('/api/admin/config', { key, value }),
 

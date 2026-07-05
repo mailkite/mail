@@ -13,6 +13,12 @@ export interface IngestOptions {
   /** 'open' (default): auto-create the receiving address. 'provisioned': only
    *  store mail to addresses the owner has provisioned; drop the rest. */
   addressMode?: 'open' | 'provisioned'
+  /** At-rest encryption (opt-in): when set, each body is encrypted to the account's
+   *  public key before it's written to the own store, so only the private-key holder
+   *  can read it. Subject/from/to stay plaintext (list views, dedupe). Null/empty
+   *  bodies pass through. Detection is envelope-based — no schema column needed.
+   *  See packages/core/src/server/encryption.ts and docs/architecture.md §1.1. */
+  encryptBody?: (text: string | null | undefined) => Promise<string | null>
 }
 
 const FLAG_COLUMNS = ['unread', 'starred', 'archived'] as const
@@ -46,6 +52,10 @@ export class MailRepo {
       addressId = await this.resolveAddressId(m.to_addr, opts.now) // open: auto-create
     }
 
+    // Encrypt the bodies at rest when a key is configured (subject stays plaintext for listing).
+    const textBody = opts.encryptBody ? await opts.encryptBody(m.text_body) : m.text_body
+    const htmlBody = opts.encryptBody ? await opts.encryptBody(m.html_body) : m.html_body
+
     await this.sql.run(
       `INSERT OR IGNORE INTO threads (id, subject, last_received_at, message_count) VALUES (?, ?, ?, 0)`,
       [m.thread_id, m.subject, opts.now],
@@ -56,7 +66,7 @@ export class MailRepo {
           spf, dkim, dmarc, spam, unread, starred, archived, received_at, address_id)
        VALUES (?, ?, 'inbound', ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0, ?, ?)`,
       [
-        m.id, m.thread_id, m.from_addr, m.to_addr, m.subject, m.text_body, m.html_body,
+        m.id, m.thread_id, m.from_addr, m.to_addr, m.subject, textBody, htmlBody,
         m.spf, m.dkim, m.dmarc, m.spam, m.received_at, addressId,
       ],
     )

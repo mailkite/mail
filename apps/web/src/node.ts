@@ -31,6 +31,7 @@ const env = {
   logoUrl: process.env.LOGO_URL,
   addressMode: process.env.ADDRESS_MODE,
   openRegistration: process.env.OPEN_REGISTRATION,
+  encPublicKey: process.env.ENC_PUBLIC_KEY,
 }
 if (!env.webhookSecret) console.warn('MAILKITE_WEBHOOK_SECRET unset — inbound disabled until set in Settings')
 if (!env.apiKey) console.warn('MAILKITE_API_KEY unset — sending disabled until set in Settings')

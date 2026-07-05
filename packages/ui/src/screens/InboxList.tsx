@@ -1,6 +1,7 @@
 import { Star } from 'lucide-react'
 import type { MessageRow } from '@mailkite/core'
 import { cn } from '../lib/cn'
+import { parseEnvelope } from '../lib/envelope'
 
 interface Props {
   messages: MessageRow[]
@@ -12,6 +13,7 @@ interface Props {
 }
 
 function preview(m: MessageRow): string {
+  if (parseEnvelope(m.text_body) || parseEnvelope(m.html_body)) return '🔒 Encrypted message'
   return (m.text_body ?? m.html_body ?? '').replace(/<[^>]+>/g, ' ').slice(0, 120)
 }
 

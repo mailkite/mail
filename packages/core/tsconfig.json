@@ -3,7 +3,10 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": ".",
-    "types": ["node"]
+    "types": ["node"],
+    // DOM is types-only here — it provides the WebCrypto globals (CryptoKey, crypto.subtle) used by
+    // the isomorphic encryption/auth code, which run natively on both Node 22 and Workers.
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["src", "test"]
 }

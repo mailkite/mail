@@ -21,6 +21,7 @@ export interface Env {
   LOGO_URL?: string
   ADDRESS_MODE?: string
   OPEN_REGISTRATION?: string
+  ENC_PUBLIC_KEY?: string
 }
 
 // Cached per isolate. Prefer setting SESSION_SECRET as a wrangler secret in
@@ -66,6 +67,7 @@ export default {
         logoUrl: env.LOGO_URL,
         addressMode: env.ADDRESS_MODE,
         openRegistration: env.OPEN_REGISTRATION,
+        encPublicKey: env.ENC_PUBLIC_KEY,
       },
     })
     return app.fetch(request)

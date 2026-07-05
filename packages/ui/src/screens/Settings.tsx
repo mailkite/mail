@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Check, Trash2 } from 'lucide-react'
-import { api, type AdminConfigItem, type TeamUser, type SenderAccount } from '../lib/api'
+import { Check, LockKeyhole, Trash2 } from 'lucide-react'
+import { api, type AdminConfigItem, type TeamUser, type SenderAccount, type EncryptionStatus } from '../lib/api'
 import { Button } from '../components/Button'
 import { Logo } from '../components/Logo'
 import { AccessSection } from './AccessSection'
@@ -320,6 +320,128 @@ function ConfigRow({ item, onSaved }: { item: AdminConfigItem; onSaved: () => Pr
   )
 }
 
+/** At-rest encryption: paste the account's RSA PUBLIC key so every future inbound body is encrypted
+ *  before it's stored. Only the private-key holder can then read mail (they decrypt in the browser —
+ *  see EncryptedBody). We validate the key and show its fingerprint; we never hold the private key. */
+function EncryptionSection() {
+  const [status, setStatus] = useState<EncryptionStatus | null>(null)
+  const [pem, setPem] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = async () => {
+    try {
+      setStatus(await api.encryption())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load encryption status')
+    }
+  }
+  useEffect(() => {
+    void load()
+  }, [])
+
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      await api.setEncryption(pem.trim())
+      setPem('')
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function disable() {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.disableEncryption()
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to disable')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const envManaged = status?.source === 'env'
+
+  return (
+    <section className="space-y-3">
+      <div>
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <LockKeyhole size={17} /> At-rest encryption
+        </h2>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">
+          Encrypt every incoming message body before it’s stored, so no one — not even this server’s
+          operator — can read it without your private key. Paste your RSA <strong>public</strong> key
+          (SPKI PEM, ≥2048-bit). Subject, sender, and recipient stay readable so the inbox list works.
+          <strong> Losing the private key means permanently losing that mail.</strong>
+        </p>
+      </div>
+      <div className="rounded-lg border border-[var(--color-border)] p-4 space-y-3">
+        {status?.enabled ? (
+          <>
+            <div className="flex items-center gap-2 text-sm">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+                <Check size={13} /> On
+              </span>
+              {status.invalid ? (
+                <span className="text-red-400">stored key no longer parses: {status.error}</span>
+              ) : (
+                <span className="text-[var(--color-muted)]">
+                  key <span className="font-mono">{status.fingerprint?.slice(0, 16)}…</span> · {status.alg}
+                </span>
+              )}
+            </div>
+            {envManaged ? (
+              <p className="text-xs text-[var(--color-muted)]">
+                Set via the <code>ENC_PUBLIC_KEY</code> environment variable — change it there.
+              </p>
+            ) : (
+              <Button onClick={disable} disabled={busy} variant="ghost">
+                <Trash2 size={15} /> Turn off (existing encrypted mail stays encrypted)
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="inline-flex items-center rounded-full bg-[var(--color-border)] px-2 py-0.5 text-xs font-medium text-[var(--color-muted)]">
+              Off — bodies stored in plain text
+            </span>
+            <form onSubmit={save} className="space-y-2">
+              <textarea
+                className={inputCls + ' h-32 resize-y font-mono text-xs'}
+                placeholder={'-----BEGIN PUBLIC KEY-----\n…\n-----END PUBLIC KEY-----'}
+                spellCheck={false}
+                value={pem}
+                onChange={(e) => setPem(e.target.value)}
+              />
+              <div className="flex items-center gap-2">
+                <Button type="submit" disabled={busy || !pem.trim()}>
+                  {busy ? 'Validating…' : 'Enable encryption'}
+                </Button>
+                {error && <span className="text-sm text-red-400">{error}</span>}
+              </div>
+            </form>
+            <p className="text-xs text-[var(--color-muted)]">
+              Generate a keypair:{' '}
+              <code>openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out private.pem</code>{' '}
+              then <code>openssl rsa -in private.pem -pubout -out public.pem</code>. Paste{' '}
+              <code>public.pem</code> here; keep <code>private.pem</code> safe.
+            </p>
+          </>
+        )}
+        {status?.enabled && error && <span className="text-sm text-red-400">{error}</span>}
+      </div>
+    </section>
+  )
+}
+
 /** Admin-only config surface — status per key, with inputs to save the
  *  non-platform ones (GET/POST /api/admin/config). */
 export function Settings() {
@@ -348,6 +470,8 @@ export function Settings() {
         <BrandingSection />
 
         <SendersSection />
+
+        <EncryptionSection />
 
         <TeamSection />
 

@@ -91,6 +91,52 @@ See [`platforms.md`](platforms.md) for the one-codebase / many-shells client str
 [`repo-structure.md`](repo-structure.md) for the workspaces layout, and [`stack.md`](stack.md) for the
 dual Node/Workers target.
 
+### 1.1 Why a backend at all — vs. a pure client-side "account view"
+
+The webmail is an **account view**: it is scoped to a single MailKite account, and each user's own
+session scopes what they see within it. MailKite **supports a client-side API with per-user OAuth
+tokens** — the user signs in, the token is scoped to their role, and no secret key ships in the
+browser (the "account view" / SendHub pattern; see
+[`../../website/src/content/docs/api/002b-client-side-api.md`](../../website/src/content/docs/api/002b-client-side-api.md)).
+So a pure SPA that talks to MailKite directly, with **no** backend, is technically possible.
+
+MailKite Mail deliberately keeps a backend + own store anyway. The account-view UX is unchanged —
+the client is still scoped to one account and one user's session — but the backend is what makes that
+view **storage-mode-agnostic, durable, and extensible**. Three reasons:
+
+> **Decision (2026-07): keep the backend + own store even though a client-side account view is
+> possible.** A pure client-side SPA can't cover MailKite's pass-through storage mode, can't provide
+> a durable second copy, and can't host features MailKite doesn't (semantic search). The backend
+> covers all three at once.
+
+1. **MailKite has three inbound-storage modes; the backend covers all three from one architecture.**
+
+   | MailKite storage mode | Where the message lives | Readable via MailKite API? | Needs a backend own-store? |
+   |---|---|---|---|
+   | **plaintext** | stored by MailKite, in the clear | yes | no — but we still keep one (reasons 2–3) |
+   | **encrypted** | stored by MailKite, as ciphertext | yes (per its encryption model) | no — but we still keep one (reasons 2–3) |
+   | **pass-through** | **not stored** — delivered **only** via the webhook | **no** | **yes — mandatory** |
+
+   In **pass-through** mode the `email.received` webhook is the **only** copy of the message, so
+   *something server-side* must receive and persist it — a device can't (§1). A backend own-store is
+   therefore **required** for pass-through and **works unchanged** for plaintext/encrypted. Ingest is
+   the same signed webhook (§3) in every mode; only whether MailKite *also* retains a copy differs.
+
+2. **The own store is a backup — and, in pass-through, the canonical copy.** Independent of
+   MailKite's retention (e.g. the 7-day attachment window, §7), the account keeps its own durable
+   copy under its own control. In pass-through this is the *only* store; in plaintext/encrypted it is
+   a resilient second copy. Keeping the backup is the correct default.
+
+3. **Extra features live on the backend, not in MailKite.** The own store enables capabilities the
+   MailKite API doesn't offer — most notably **semantic search** over the account's mail — plus
+   per-user ACL scoping (§9, [`acl.md`](acl.md)), thread/folder/read state, and image proxying (§6).
+   These require a store we own and can query and index ourselves.
+
+The OAuth-token, client-side account view and this backend are **not** mutually exclusive: automated
+callers (MCP, cron, integrations) still use the server-side API key path (§5), while the human webmail
+is the account view served by the backend. What the backend buys over talking to MailKite directly is
+storage-mode independence, a durable backup, and room for features MailKite doesn't have.
+
 ---
 
 ## 2. End-to-end data flow & credentials

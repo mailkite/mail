@@ -1,4 +1,5 @@
 import type { MessageRow } from '@mailkite/core'
+import { parseEnvelope } from '../../lib/envelope'
 
 /** "sarah@acme.com" → "Sarah", "Sarah Chen <s@x>" → "Sarah Chen". */
 export function senderName(addr: string): string {
@@ -23,8 +24,9 @@ export function fmtTime(ts: number): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-/** Plain-text preview of a message body. */
+/** Plain-text preview of a message body. Encrypted bodies show a placeholder, not the envelope. */
 export function snippet(m: Pick<MessageRow, 'text_body' | 'html_body'>, max = 140): string {
+  if (parseEnvelope(m.text_body) || parseEnvelope(m.html_body)) return '🔒 Encrypted message'
   const raw = m.text_body || (m.html_body ? m.html_body.replace(/<[^>]*>/g, ' ') : '')
   const clean = raw.replace(/\s+/g, ' ').trim()
   return clean.length > max ? clean.slice(0, max) + '…' : clean
