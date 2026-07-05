@@ -83,9 +83,7 @@ export function LeftRail({
                 }
               >
                 <span>{b.icon}</span>
-                {b.id === 'inbox' && inboxCount ? (
-                  <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[9px] font-bold text-amber-950">{inboxCount}</span>
-                ) : null}
+                {b.id === 'inbox' && inboxCount ? <CountBadge count={inboxCount} floating /> : null}
               </button>
             </Tip>
           )
@@ -139,9 +137,7 @@ export function LeftRail({
             >
               <span>{b.icon} {b.label}</span>
               <span className="flex items-center gap-1.5">
-                {b.id === 'inbox' && inboxCount ? (
-                  <span className={'rounded-full px-1.5 text-[11px] font-bold ' + (active ? 'bg-amber-400 text-amber-950' : 'text-[var(--color-muted)]')}>{inboxCount}</span>
-                ) : null}
+                {b.id === 'inbox' && inboxCount ? <CountBadge count={inboxCount} /> : null}
                 <Kbd>{b.key}</Kbd>
               </span>
             </button>
@@ -188,6 +184,21 @@ function Soon() {
   return (
     <span className="rounded bg-[color-mix(in_oklab,var(--color-border)_35%,transparent)] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-[var(--color-muted)] ring-1 ring-[var(--color-border)]">
       soon
+    </span>
+  )
+}
+
+/** Unread notification count — one amber pill, shared by the collapsed icon strip
+ *  (floating corner badge) and the expanded rail (inline), so both read the same. */
+function CountBadge({ count, floating }: { count: number; floating?: boolean }) {
+  return (
+    <span
+      className={
+        (floating ? 'absolute -right-0.5 -top-0.5 ' : '') +
+        'grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[10px] font-bold leading-none text-amber-950'
+      }
+    >
+      {count}
     </span>
   )
 }

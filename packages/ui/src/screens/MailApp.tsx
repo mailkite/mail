@@ -14,6 +14,7 @@ import { TriageList } from './unified/TriageList'
 import { ReadingPane } from './unified/ReadingPane'
 import { ReplyPanel } from './unified/ReplyPanel'
 import { AssistantPanel } from './unified/AssistantPanel'
+import { senderName } from './unified/util'
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../components/resizable'
 
 const FOLDER_META: Record<Folder, { title: string; subtitle: string }> = {
@@ -194,6 +195,13 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
     setReplyText(text ?? savedDrafts.current[m.id] ?? '')
     showMessage(m)
   }
+  // AI Reply — the reply-drafting provider arrives in a later phase (see the
+  // "soon"-tagged Smart replies in AssistantPanel). For now we open the composer
+  // prefilled with a short opener so the gesture is live end-to-end.
+  function aiReply(m: MessageRow) {
+    const first = senderName(m.from_addr).split(/\s+/)[0] || 'there'
+    startReply(m, `Hi ${first},\n\n`)
+  }
   function onReplySent() {
     if (selected) delete savedDrafts.current[selected.id]
     setReplyText('')
@@ -259,6 +267,9 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
           if (next) openMessage(next); else goBackHistory()
         }
         else if ((e.key === 'r' || e.key === 'R') && canSend) { e.preventDefault(); startReply(selected) }
+        else if ((e.key === 'i' || e.key === 'I') && canSend) { e.preventDefault(); aiReply(selected) }
+        else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); dismiss(selected) } // reply later
+        else if (e.key === 'a' || e.key === 'A') { e.preventDefault(); dismiss(selected) } // set aside
         return
       }
       if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); setCursor((c) => Math.min(c + 1, messages.length - 1)) }
@@ -295,6 +306,7 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
       canSend={canSend}
       onBack={goBackHistory}
       onReply={(m) => startReply(m)}
+      onAiReply={aiReply}
       onStar={toggleStar}
       onArchive={archive}
       onLater={dismiss}
