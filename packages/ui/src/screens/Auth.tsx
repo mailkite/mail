@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { api, type SessionUser } from '../lib/api'
 import { Button } from '../components/Button'
+import { ProviderIcon } from '../components/ProviderIcon'
 import { AuthScreen, Field } from '../components/auth-ui'
 
 type Mode = 'login' | 'signup' | 'verify'
@@ -15,6 +16,7 @@ const UNVERIFIED = /verify your email/i
  * `onAuthed` confirms the session stuck (App.confirmSession).
  */
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
+const GITHUB_AUTH_URL = 'https://github.com/login/oauth/authorize'
 
 function startGoogle(clientId: string) {
   const params = new URLSearchParams({
@@ -27,10 +29,20 @@ function startGoogle(clientId: string) {
   window.location.href = `${GOOGLE_AUTH_URL}?${params.toString()}`
 }
 
+function startGitHub(clientId: string) {
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: `${window.location.origin}/auth/github/callback`,
+    scope: 'read:user user:email', // read the verified primary email via /user/emails
+  })
+  window.location.href = `${GITHUB_AUTH_URL}?${params.toString()}`
+}
+
 export function Auth({
   initialMode = 'login',
   oauth = false,
   googleClientId = '',
+  githubClientId = '',
   appName,
   logoUrl,
   openRegistration = false,
@@ -39,6 +51,7 @@ export function Auth({
   initialMode?: Mode
   oauth?: boolean
   googleClientId?: string
+  githubClientId?: string
   appName?: string
   logoUrl?: string
   openRegistration?: boolean
@@ -108,23 +121,39 @@ export function Auth({
     <AuthScreen title={title} subtitle={subtitle} brandName={appName} logoUrl={logoUrl}>
       {mode !== 'verify' && (
         <div className="mb-4">
-          {oauth && googleClientId ? (
+          {oauth && (googleClientId || githubClientId) ? (
             <>
-              <Button
-                variant="ghost"
-                type="button"
-                onClick={() => startGoogle(googleClientId)}
-                className="w-full justify-center border border-[var(--color-border)]"
-              >
-                Continue with Google
-              </Button>
+              <div className="space-y-2">
+                {googleClientId && (
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    onClick={() => startGoogle(googleClientId)}
+                    className="w-full justify-center gap-2 border border-[var(--color-border)]"
+                  >
+                    <ProviderIcon id="google" className="size-4" />
+                    Continue with Google
+                  </Button>
+                )}
+                {githubClientId && (
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    onClick={() => startGitHub(githubClientId)}
+                    className="w-full justify-center gap-2 border border-[var(--color-border)]"
+                  >
+                    <ProviderIcon id="github" className="size-4" />
+                    Continue with GitHub
+                  </Button>
+                )}
+              </div>
               <div className="my-3 flex items-center gap-2 text-xs text-[var(--color-muted)]">
                 <span className="h-px flex-1 bg-[var(--color-border)]" /> or <span className="h-px flex-1 bg-[var(--color-border)]" />
               </div>
             </>
           ) : (
             <p className="mb-1 text-xs text-[var(--color-muted)]">
-              Google sign-in isn’t set up — an admin can enable it in Settings.
+              Social sign-in isn’t set up — an admin can enable it in Settings.
             </p>
           )}
         </div>

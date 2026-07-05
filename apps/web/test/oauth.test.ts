@@ -16,6 +16,10 @@ const postGoogle = (app: Awaited<ReturnType<typeof makeApp>>['app'], body: unkno
   app.fetch(new Request('http://x/api/auth/google', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
   }))
+const postGitHub = (app: Awaited<ReturnType<typeof makeApp>>['app'], body: unknown) =>
+  app.fetch(new Request('http://x/api/auth/github', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  }))
 
 describe('Google OAuth — config gating', () => {
   it('oauth=false and client id hidden when unconfigured; endpoint 503s', async () => {
@@ -32,6 +36,44 @@ describe('Google OAuth — config gating', () => {
     expect(c.oauth).toBe(true)
     expect(c.googleClientId).toBe('cid.apps.googleusercontent.com')
     expect((await postGoogle(app, {})).status).toBe(400) // configured but no code
+  })
+})
+
+describe('GitHub OAuth — config gating', () => {
+  it('oauth=false and client id hidden when unconfigured; endpoint 503s', async () => {
+    const { app } = await makeApp()
+    const c = await cfg(app)
+    expect(c.oauth).toBe(false)
+    expect(c.githubClientId).toBe('')
+    expect((await postGitHub(app, { code: 'x', redirectUri: 'y' })).status).toBe(503)
+  })
+
+  it('oauth=true and public client id exposed when configured; bad request 400s', async () => {
+    const { app } = await makeApp({ githubClientId: 'gh_cid', githubClientSecret: 's' })
+    const c = await cfg(app)
+    expect(c.oauth).toBe(true)
+    expect(c.githubClientId).toBe('gh_cid')
+    expect((await postGitHub(app, {})).status).toBe(400) // configured but no code
+  })
+})
+
+describe('upsertGitHubUser', () => {
+  it('makes the first GitHub user an admin, later ones members, and links existing accounts', async () => {
+    const { repo } = await makeApp()
+    const first = await repo.upsertGitHubUser({ email: 'a@x.com', sub: 'gh1', name: 'A', picture: null })
+    expect(first.role).toBe('admin')
+    expect(first.provider).toBe('github')
+    expect(first.status).toBe('active')
+
+    const second = await repo.upsertGitHubUser({ email: 'b@x.com', sub: 'gh2', name: 'B', picture: null })
+    expect(second.role).toBe('user')
+
+    // existing email (e.g. a prior password member) gets linked, not duplicated
+    await repo.createUser({ id: 'usr_c', email: 'c@x.com', password_hash: 'h', role: 'user', created_at: 1, status: 'active' })
+    const linked = await repo.upsertGitHubUser({ email: 'c@x.com', sub: 'gh3', name: 'C', picture: null })
+    expect(linked.github_sub).toBe('gh3')
+    expect(linked.provider).toBe('github')
+    expect(await repo.countUsers()).toBe(3)
   })
 })
 

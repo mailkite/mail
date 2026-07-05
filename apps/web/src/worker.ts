@@ -17,6 +17,8 @@ export interface Env {
   ADMIN_PASSWORD?: string
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
+  GITHUB_CLIENT_ID?: string
+  GITHUB_CLIENT_SECRET?: string
   APP_NAME?: string
   LOGO_URL?: string
   ADDRESS_MODE?: string
@@ -63,6 +65,8 @@ export default {
         adminPassword: env.ADMIN_PASSWORD,
         googleClientId: env.GOOGLE_CLIENT_ID,
         googleClientSecret: env.GOOGLE_CLIENT_SECRET,
+        githubClientId: env.GITHUB_CLIENT_ID,
+        githubClientSecret: env.GITHUB_CLIENT_SECRET,
         appName: env.APP_NAME,
         logoUrl: env.LOGO_URL,
         addressMode: env.ADDRESS_MODE,

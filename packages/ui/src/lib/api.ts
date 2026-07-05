@@ -84,7 +84,7 @@ export interface TeamUser {
   email: string
   role: 'admin' | 'user'
   status: 'active' | 'pending' | 'invited'
-  provider: 'password' | 'google'
+  provider: 'password' | 'google' | 'github'
   name: string | null
 }
 
@@ -120,6 +120,7 @@ export interface AppConfig {
   needsSetup: boolean
   oauth: boolean
   googleClientId: string
+  githubClientId: string
   appName: string
   logoUrl: string
   openRegistration: boolean
@@ -144,6 +145,8 @@ export const api = {
   resend: (email: string) => postJSON<{ ok: boolean }>('/api/admin/resend', { email }),
   loginWithGoogle: (code: string, redirectUri: string) =>
     postJSON<SessionUser>('/api/auth/google', { code, redirectUri }),
+  loginWithGitHub: (code: string, redirectUri: string) =>
+    postJSON<SessionUser>('/api/auth/github', { code, redirectUri }),
   logout: () =>
     fetch(`${base}/api/admin/logout`, { method: 'POST', credentials: 'include' }).then(() => {}),
   deleteAccount: () => postJSON<{ ok: boolean }>('/api/admin/account/delete', {}),

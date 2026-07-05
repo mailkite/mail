@@ -1,44 +1,11 @@
-// Client-side detection + decryption of the at-rest encryption envelope (RSA-OAEP-256 + AES-256-GCM)
-// that the backend stores when the account has a public key set. MailKite Mail is zero-knowledge — it
-// only holds the public key — so decryption is the account holder's job and happens entirely in this
-// browser tab (the private key is never sent anywhere). Mirrors the production encrypt in
-// @mailkite/core/server `encryption.ts`. See docs/architecture.md §1.1.
-
-// The stored envelope shape — matches @mailkite/core/server `Envelope`. All binary fields base64.
-export interface Envelope {
-  v: 1
-  keyAlg: 'RSA-OAEP-256'
-  fp: string
-  enc: 'A256GCM'
-  iv: string
-  wrappedKey: string
-  ciphertext: string
-}
-
-// Sniff a stored body. Bodies are plaintext unless the account has at-rest encryption on, in which
-// case the column holds a compact JSON envelope. Returns the parsed envelope or null (plaintext).
-// Cheap-guards on the leading `{` so we don't JSON.parse every plaintext body.
-export function parseEnvelope(body: string | null | undefined): Envelope | null {
-  if (!body || body[0] !== '{') return null
-  let v: unknown
-  try {
-    v = JSON.parse(body)
-  } catch {
-    return null
-  }
-  if (
-    v != null &&
-    typeof v === 'object' &&
-    (v as Envelope).v === 1 &&
-    (v as Envelope).keyAlg === 'RSA-OAEP-256' &&
-    typeof (v as Envelope).wrappedKey === 'string' &&
-    typeof (v as Envelope).ciphertext === 'string' &&
-    typeof (v as Envelope).iv === 'string'
-  ) {
-    return v as Envelope
-  }
-  return null
-}
+// The at-rest envelope format + detection come from the shared MailKite SDK (@mailkite/client) — one
+// implementation, every SDK. What the SDK does NOT offer, and what this file adds, are the two
+// browser-security helpers our decryption model needs: importing the private key as a
+// NON-EXTRACTABLE CryptoKey (so its bytes can never be read back out or persisted as a PEM) and
+// decrypting with that held key. The SDK's decrypt takes a PEM string, which we deliberately avoid
+// holding. See lib/decryption-keys.tsx and docs/architecture.md §1.1.
+export { parseEnvelope, type Envelope } from '@mailkite/client'
+import type { Envelope } from '@mailkite/client'
 
 function b64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
   const bin = atob(b64)
@@ -47,10 +14,9 @@ function b64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
   return out
 }
 
-// Import an RSA private key from PEM (PKCS#8 — the `-----BEGIN PRIVATE KEY-----` block OpenSSL emits).
-// Imported with extractable=false, so the key can decrypt but its bytes can never be read back out by
-// script (`exportKey` rejects) — which is what lets us persist it in IndexedDB safely (see
-// key-vault.ts + decryption-keys.tsx). Throws a human-readable error the UI can show verbatim.
+// Import an RSA private key from PEM (PKCS#8). extractable=false, so the key can decrypt but its bytes
+// can never be read back out by script (`exportKey` rejects) — which is what lets us persist it in
+// IndexedDB safely (see key-vault.ts). Throws a human-readable error the UI can show verbatim.
 export async function importPrivateKey(pem: string): Promise<CryptoKey> {
   const body = pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '')
   if (!body) throw new Error('Paste a PEM private key (-----BEGIN PRIVATE KEY-----).')

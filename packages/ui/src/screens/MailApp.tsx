@@ -118,7 +118,7 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
 
   useEffect(() => {
     api.config().then(setConfig).catch(() =>
-      setConfig({ sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '', appName: 'MailKite Mail', logoUrl: '', openRegistration: false }),
+      setConfig({ sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '', githubClientId: '', appName: 'MailKite Mail', logoUrl: '', openRegistration: false }),
     )
   }, [])
 

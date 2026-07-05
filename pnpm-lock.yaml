@@ -20,6 +20,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.13.7
         version: 1.19.14(hono@4.12.27)
+      '@mailkite/client':
+        specifier: ^0.10.0
+        version: 0.10.0
       '@mailkite/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -94,6 +97,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@mailkite/client':
+        specifier: ^0.10.0
+        version: 0.10.0
       '@mailkite/core':
         specifier: workspace:*
         version: link:../core
@@ -989,6 +995,10 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
+
+  '@mailkite/client@0.10.0':
+    resolution: {integrity: sha512-EacFdkd36rw2Mvh49Ra1I2UJLtqk7R5yqA4rA8c1/PCt6sCQS+hj8ouubC3yk3i1zgHFy6KAbkI6fUrYQOMGRQ==}
+    engines: {node: '>=18'}
 
   '@rolldown/pluginutils@1.0.0-beta.27':
     resolution: {integrity: sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==}
@@ -2687,6 +2697,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@mailkite/client@0.10.0': {}
 
   '@rolldown/pluginutils@1.0.0-beta.27': {}
 

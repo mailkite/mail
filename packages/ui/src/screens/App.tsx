@@ -30,10 +30,11 @@ function Splash({ error, onRetry }: { error?: string | null; onRetry?: () => voi
  * instead of silently bouncing back to the login form.
  */
 const FALLBACK_CONFIG: AppConfig = {
-  sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '',
+  sending: false, push: false, needsSetup: false, oauth: false, googleClientId: '', githubClientId: '',
   appName: 'MailKite Mail', logoUrl: '', openRegistration: false,
 }
 const GOOGLE_CALLBACK = '/auth/google/callback'
+const GITHUB_CALLBACK = '/auth/github/callback'
 
 export function App() {
   const [config, setConfig] = useState<AppConfig | null>(null)
@@ -58,12 +59,16 @@ export function App() {
   const refresh = useCallback(async () => {
     setLoadError(null)
     try {
-      // Returning from Google: exchange the code, then clean the URL.
+      // Returning from an OAuth provider: exchange the code, then clean the URL.
       const url = new URL(window.location.href)
-      if (url.pathname === GOOGLE_CALLBACK && url.searchParams.get('code')) {
+      const oauthCallback =
+        url.pathname === GOOGLE_CALLBACK ? { path: GOOGLE_CALLBACK, exchange: api.loginWithGoogle }
+        : url.pathname === GITHUB_CALLBACK ? { path: GITHUB_CALLBACK, exchange: api.loginWithGitHub }
+        : null
+      if (oauthCallback && url.searchParams.get('code')) {
         const code = url.searchParams.get('code') as string
-        const redirectUri = `${url.origin}${GOOGLE_CALLBACK}`
-        const u = await api.loginWithGoogle(code, redirectUri)
+        const redirectUri = `${url.origin}${oauthCallback.path}`
+        const u = await oauthCallback.exchange(code, redirectUri)
         window.history.replaceState(null, '', '/')
         setConfig(await api.config().catch(() => FALLBACK_CONFIG))
         await confirmSession(u)
@@ -107,6 +112,7 @@ export function App() {
         initialMode={config.needsSetup || config.openRegistration ? 'signup' : 'login'}
         oauth={config.oauth}
         googleClientId={config.googleClientId}
+        githubClientId={config.githubClientId}
         appName={config.appName}
         logoUrl={config.logoUrl}
         openRegistration={config.openRegistration}

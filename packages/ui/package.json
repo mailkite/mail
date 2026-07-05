@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mailkite/client": "^0.10.0",
     "@mailkite/core": "workspace:*",
     "clsx": "^2.1.1",
     "dompurify": "^3.2.3",

@@ -51,7 +51,7 @@ export type Folder = 'inbox' | 'starred' | 'archive'
 
 export type Role = 'admin' | 'user'
 
-export type AuthProvider = 'password' | 'google'
+export type AuthProvider = 'password' | 'google' | 'github'
 export type UserStatus = 'active' | 'pending' | 'invited'
 
 export interface SenderAccountRow {
@@ -102,6 +102,7 @@ export interface UserRow {
   name?: string | null
   provider?: AuthProvider
   google_sub?: string | null
+  github_sub?: string | null
   status?: UserStatus
   invited_by?: string | null
   avatar_url?: string | null

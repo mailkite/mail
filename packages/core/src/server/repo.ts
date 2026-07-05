@@ -296,12 +296,12 @@ export class MailRepo {
 
   async createUser(u: UserRow): Promise<void> {
     await this.sql.run(
-      `INSERT INTO users (id, email, password_hash, role, created_at, name, provider, google_sub, status, invited_by, avatar_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users (id, email, password_hash, role, created_at, name, provider, google_sub, status, invited_by, avatar_url, github_sub)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         u.id, u.email, u.password_hash, u.role, u.created_at,
         u.name ?? null, u.provider ?? 'password', u.google_sub ?? null,
-        u.status ?? 'active', u.invited_by ?? null, u.avatar_url ?? null,
+        u.status ?? 'active', u.invited_by ?? null, u.avatar_url ?? null, u.github_sub ?? null,
       ],
     )
   }
@@ -335,6 +335,34 @@ export class MailRepo {
       name: u.name,
       provider: 'google',
       google_sub: u.sub,
+      status: 'active',
+      avatar_url: u.picture,
+    }
+    await this.createUser(row)
+    return row
+  }
+
+  /** Create or activate a GitHub-authenticated user (no password). Returns the row. */
+  async upsertGitHubUser(u: { email: string; sub: string; name: string | null; picture: string | null }): Promise<UserRow> {
+    const existing = await this.getUserByEmail(u.email)
+    if (existing) {
+      await this.sql.run(
+        `UPDATE users SET provider = 'github', github_sub = ?, name = COALESCE(name, ?),
+         avatar_url = COALESCE(avatar_url, ?), status = 'active' WHERE email = ?`,
+        [u.sub, u.name, u.picture, u.email],
+      )
+      return (await this.getUserByEmail(u.email))!
+    }
+    const role: Role = (await this.countUsers()) === 0 ? 'admin' : 'user'
+    const row: UserRow = {
+      id: `usr_${crypto.randomUUID()}`,
+      email: u.email,
+      password_hash: '',
+      role,
+      created_at: Date.now(),
+      name: u.name,
+      provider: 'github',
+      github_sub: u.sub,
       status: 'active',
       avatar_url: u.picture,
     }

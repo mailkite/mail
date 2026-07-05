@@ -222,7 +222,8 @@ function TeamSection() {
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{u.email}</div>
                 <div className="text-xs text-[var(--color-muted)]">
-                  {u.role === 'admin' ? 'Admin' : 'Member'} · {u.provider === 'google' ? 'Google' : 'Password'}
+                  {u.role === 'admin' ? 'Admin' : 'Member'} ·{' '}
+                  {u.provider === 'google' ? 'Google' : u.provider === 'github' ? 'GitHub' : 'Password'}
                 </div>
               </div>
               <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{label}</span>

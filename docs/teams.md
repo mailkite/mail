@@ -25,8 +25,8 @@ describe the building blocks; this doc is the product decision they now serve.
 | Aspect | Decision |
 |---|---|
 | **Tenant** | One team = one verified domain. The team shares the domain's whole inbox (the catch-all `*@domain` webhook). No per-user mailbox partitioning. |
-| **Members** | The **admin invites** teammates by email; invitees **sign in with Google** and are activated on first login. Non-invited Google accounts are rejected. |
-| **Login** | Two methods, both **email-verified**: (1) **email + password** with a one-time **verification code** emailed on signup (proves the user controls the address the admin invited); (2) **Google OAuth** (email verified by Google). |
+| **Members** | The **admin invites** teammates by email; invitees **sign in with Google or GitHub** (or email + code) and are activated on first login. Non-invited OAuth accounts are rejected. |
+| **Login** | Three methods, all **email-verified**: (1) **email + password** with a one-time **verification code** emailed on signup (proves the user controls the address the admin invited); (2) **Google OAuth** (email verified by Google); (3) **GitHub OAuth** (matched on the account's verified primary email). Enable a provider by setting its `*_CLIENT_ID`/`*_CLIENT_SECRET` (env or Settings). |
 | **Bootstrap** | **First user to verify in** (by either method) becomes the **admin** — no preset admin/password. After that, only admin-invited emails may join (T3). |
 | **Sender addresses** | The team **provisions** send-as addresses (`support@`, `hello@`, or per-person `alice@`). Any address on the verified domain is valid — provisioning just records it as a pickable sender. |
 | **Sender permissions** | **No ACL for now.** Any member may send as any provisioned address. Per-user sender restrictions are deferred. |

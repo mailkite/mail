@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
+    "@mailkite/client": "^0.10.0",
     "@mailkite/core": "workspace:*",
     "@mailkite/ui": "workspace:*",
     "hono": "^4.9.0",

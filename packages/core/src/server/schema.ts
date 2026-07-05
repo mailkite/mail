@@ -75,7 +75,8 @@ CREATE TABLE IF NOT EXISTS users (
   google_sub    TEXT,
   status        TEXT NOT NULL DEFAULT 'active',
   invited_by    TEXT,
-  avatar_url    TEXT
+  avatar_url    TEXT,
+  github_sub    TEXT
 );
 
 -- Operator-saved config (env-first; this is the DB fallback). Secrets included.

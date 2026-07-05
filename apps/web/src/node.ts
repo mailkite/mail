@@ -27,6 +27,8 @@ const env = {
   adminPassword: process.env.ADMIN_PASSWORD,
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  githubClientId: process.env.GITHUB_CLIENT_ID,
+  githubClientSecret: process.env.GITHUB_CLIENT_SECRET,
   appName: process.env.APP_NAME,
   logoUrl: process.env.LOGO_URL,
   addressMode: process.env.ADDRESS_MODE,

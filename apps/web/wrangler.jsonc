@@ -35,5 +35,10 @@
       "bucket_name": "mailkite-mail-attachments"
     }
   ],
+  // GitHub OAuth App for mailn.app (callback https://mailn.app/auth/github/callback).
+  // Client id is public; GITHUB_CLIENT_SECRET is a wrangler secret.
+  "vars": {
+    "GITHUB_CLIENT_ID": "Ov23liGNllCzyOZQDXHe"
+  },
   "observability": { "enabled": true }
 }

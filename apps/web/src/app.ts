@@ -12,10 +12,21 @@ import {
   hashToken,
   exchangeGoogleCode,
   decodeGoogleIdToken,
-  parsePublicKey,
-  encryptString,
+  exchangeGitHubCode,
+  fetchGitHubIdentity,
 } from '@mailkite/core/server'
 import type { SendInput, SendResult, SessionPayload, UserRow } from '@mailkite/core/server'
+// At-rest encryption comes from the shared MailKite SDK (isomorphic Web Crypto — same envelope every
+// SDK produces/consumes), not a local port. `encrypt` throws a human-readable error on a bad/too-small
+// key, so a probe-encrypt doubles as key validation for the admin endpoints.
+import { encrypt as mkEncrypt, publicKeyFingerprint } from '@mailkite/client'
+
+/** Validate a pasted RSA public key by probe-encrypting to it; return its fingerprint. Throws a
+ *  human-readable error (private key / too small / malformed) the API can surface verbatim. */
+async function validateEncKey(pem: string): Promise<{ fingerprint: string; alg: string }> {
+  await mkEncrypt('mk_probe', pem)
+  return { fingerprint: await publicKeyFingerprint(pem), alg: 'RSA-OAEP-256' }
+}
 
 export interface AppEnvConfig {
   webhookSecret?: string
@@ -26,6 +37,8 @@ export interface AppEnvConfig {
   adminPassword?: string
   googleClientId?: string
   googleClientSecret?: string
+  githubClientId?: string
+  githubClientSecret?: string
   appName?: string
   logoUrl?: string
   addressMode?: string
@@ -53,6 +66,8 @@ const CONFIG_ITEMS = [
   { key: 'MAILKITE_FROM', secret: false, gates: null, env: (e: AppEnvConfig) => e.from },
   { key: 'GOOGLE_CLIENT_ID', secret: false, gates: 'google sign-in', env: (e: AppEnvConfig) => e.googleClientId },
   { key: 'GOOGLE_CLIENT_SECRET', secret: true, gates: 'google sign-in', env: (e: AppEnvConfig) => e.googleClientSecret },
+  { key: 'GITHUB_CLIENT_ID', secret: false, gates: 'github sign-in', env: (e: AppEnvConfig) => e.githubClientId },
+  { key: 'GITHUB_CLIENT_SECRET', secret: true, gates: 'github sign-in', env: (e: AppEnvConfig) => e.githubClientSecret },
   { key: 'APP_NAME', secret: false, gates: 'branding', env: (e: AppEnvConfig) => e.appName },
   { key: 'LOGO_URL', secret: false, gates: 'branding', env: (e: AppEnvConfig) => e.logoUrl },
   { key: 'ADDRESS_MODE', secret: false, gates: 'inbound', env: (e: AppEnvConfig) => e.addressMode },
@@ -127,18 +142,23 @@ export function createApp(deps: AppDeps) {
     const needsSetup = !deps.env.adminPassword && (await deps.repo.countUsers()) === 0
     const googleClientId = await resolve('GOOGLE_CLIENT_ID', deps.env.googleClientId)
     const googleClientSecret = await resolve('GOOGLE_CLIENT_SECRET', deps.env.googleClientSecret)
-    const oauth = Boolean(googleClientId && googleClientSecret)
+    const githubClientId = await resolve('GITHUB_CLIENT_ID', deps.env.githubClientId)
+    const githubClientSecret = await resolve('GITHUB_CLIENT_SECRET', deps.env.githubClientSecret)
+    const googleOk = Boolean(googleClientId && googleClientSecret)
+    const githubOk = Boolean(githubClientId && githubClientSecret)
+    const oauth = googleOk || githubOk
     const appName = (await resolve('APP_NAME', deps.env.appName)) || 'MailKite Mail'
     const logoUrl = await resolve('LOGO_URL', deps.env.logoUrl)
     const openRegistration = await openRegEnabled()
-    // googleClientId is public (the SPA builds the consent URL with it); the
-    // secret never leaves the server.
+    // Client ids are public (the SPA builds the consent URL with them); the
+    // secrets never leave the server.
     return c.json({
       sending,
       push: false,
       needsSetup,
       oauth,
-      googleClientId: oauth ? googleClientId : '',
+      googleClientId: googleOk ? googleClientId : '',
+      githubClientId: githubOk ? githubClientId : '',
       appName,
       logoUrl,
       openRegistration,
@@ -281,6 +301,37 @@ export function createApp(deps: AppDeps) {
     }
     const u = await deps.repo.upsertGoogleUser({
       email: gEmail,
+      sub: identity.sub,
+      name: identity.name,
+      picture: identity.picture,
+    })
+    await startSession(c, { uid: u.id, role: u.role, email: u.email })
+    return c.json({ email: u.email, role: u.role })
+  })
+
+  // GitHub OAuth: the SPA gets a one-time code at <origin>/auth/github/callback
+  // and POSTs it here. We exchange it (confidential client) for an access token,
+  // read the verified primary email + profile, then upsert the user + session.
+  // First user becomes admin. GitHub has no ID token, so identity comes from the
+  // authenticated API calls.
+  app.post('/api/auth/github', async (c) => {
+    const clientId = await resolve('GITHUB_CLIENT_ID', deps.env.githubClientId)
+    const clientSecret = await resolve('GITHUB_CLIENT_SECRET', deps.env.githubClientSecret)
+    if (!clientId || !clientSecret) return c.json({ error: 'GitHub sign-in is not configured' }, 503)
+    const body = (await c.req.json().catch(() => null)) as { code?: string; redirectUri?: string } | null
+    if (!body?.code || !body.redirectUri) return c.json({ error: 'code and redirectUri required' }, 400)
+
+    const token = await exchangeGitHubCode({ code: body.code, redirectUri: body.redirectUri, clientId, clientSecret })
+    const identity = token ? await fetchGitHubIdentity(token) : null
+    if (!identity || !identity.email) {
+      return c.json({ error: 'GitHub sign-in failed — no verified email on the account' }, 401)
+    }
+    const ghEmail = identity.email.toLowerCase()
+    if (!(await deps.repo.getUserByEmail(ghEmail)) && (await deps.repo.countUsers()) > 0 && !(await openRegEnabled())) {
+      return c.json({ error: 'not invited — ask your team admin to add you' }, 403)
+    }
+    const u = await deps.repo.upsertGitHubUser({
+      email: ghEmail,
       sub: identity.sub,
       name: identity.name,
       picture: identity.picture,
@@ -469,8 +520,8 @@ export function createApp(deps: AppDeps) {
     const source = deps.env.encPublicKey ? 'env' : (await deps.repo.getSetting('ENC_PUBLIC_KEY')) ? 'saved' : 'unset'
     if (!pem) return c.json({ enabled: false, source: 'unset' })
     try {
-      const pk = await parsePublicKey(pem)
-      return c.json({ enabled: true, source, fingerprint: pk.fingerprint, alg: pk.alg })
+      const { fingerprint, alg } = await validateEncKey(pem)
+      return c.json({ enabled: true, source, fingerprint, alg })
     } catch (e) {
       // A stored key that no longer parses (corruption/format change): report it so the UI can warn.
       return c.json({ enabled: true, source, invalid: true, error: e instanceof Error ? e.message : 'invalid key' })
@@ -481,14 +532,14 @@ export function createApp(deps: AppDeps) {
     const body = (await c.req.json().catch(() => null)) as { publicKey?: string } | null
     if (!body?.publicKey?.trim()) return c.json({ error: 'publicKey (RSA SPKI PEM) required' }, 400)
     if (deps.env.encPublicKey) return c.json({ error: 'ENC_PUBLIC_KEY is set via env — change it there, not here' }, 409)
-    let pk
+    let fp
     try {
-      pk = await parsePublicKey(body.publicKey)
+      fp = await validateEncKey(body.publicKey)
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : 'invalid public key' }, 400)
     }
     await deps.repo.setSetting('ENC_PUBLIC_KEY', body.publicKey.trim())
-    return c.json({ enabled: true, fingerprint: pk.fingerprint, alg: pk.alg })
+    return c.json({ enabled: true, fingerprint: fp.fingerprint, alg: fp.alg })
   })
 
   app.delete('/api/admin/encryption', requireAdmin, async (c) => {
@@ -520,19 +571,19 @@ export function createApp(deps: AppDeps) {
 
     const addressMode = (await resolve('ADDRESS_MODE', deps.env.addressMode)) === 'provisioned' ? 'provisioned' : 'open'
 
-    // At-rest encryption (opt-in): if the account configured a public key, encrypt bodies before
-    // they touch the store. Parse it once per delivery; a bad key must not silently store plaintext,
-    // so we fail the delivery (MailKite retries) rather than degrade the privacy guarantee.
+    // At-rest encryption (opt-in): if the account configured a public key, encrypt bodies (via the
+    // shared SDK) before they touch the store. Validate the key up front; a bad key must not silently
+    // store plaintext, so we fail the delivery (MailKite retries) rather than degrade the guarantee.
+    // Empty bodies pass through — there's nothing to protect and the store keeps NULL.
     const encKeyPem = await resolve('ENC_PUBLIC_KEY', deps.env.encPublicKey)
     let encryptBody: ((t: string | null | undefined) => Promise<string | null>) | undefined
     if (encKeyPem) {
-      let pk
       try {
-        pk = await parsePublicKey(encKeyPem)
+        await validateEncKey(encKeyPem)
       } catch (e) {
         return c.json({ error: `at-rest encryption key invalid: ${e instanceof Error ? e.message : 'bad key'}` }, 500)
       }
-      encryptBody = (t) => encryptString(pk, t)
+      encryptBody = (t) => (t == null || t === '' ? Promise.resolve(t ?? null) : mkEncrypt(t, encKeyPem))
     }
 
     const { stored } = await deps.repo.ingestWebhookMessage(payload, { now: Date.now(), fetchAttachment, addressMode, encryptBody })
