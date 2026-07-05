@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MessageRow, Folder } from '@mailkite/core'
-import { Moon, Sun, Settings as SettingsIcon, Users, ArrowLeft, BookOpen } from 'lucide-react'
+import { Settings as SettingsIcon, Users, ArrowLeft, BookOpen } from 'lucide-react'
 import { api, type AppConfig, type SessionUser } from '../lib/api'
 import { Compose, type ComposeDraft } from './Compose'
 import { Settings } from './Settings'
 import { Profile } from './Profile'
 import { TeamAdmin } from './TeamAdmin'
-import { useTheme } from '../theme/ThemeProvider'
+import { ThemeMenu } from '../components/ThemeMenu'
 import { Avatar } from '../components/Avatar'
 import { Logo } from '../components/Logo'
 import { LeftRail } from './unified/LeftRail'
@@ -101,7 +101,6 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
     try { return localStorage.getItem('mailkite.assistant.collapsed') === '1' } catch { return false }
   })
   const isAdmin = user?.role === 'admin'
-  const { resolved, setMode } = useTheme()
 
   const selectedRef = useRef<MessageRow | null>(null)
   useEffect(() => { selectedRef.current = selected }, [selected])
@@ -324,9 +323,7 @@ export function MailApp({ user, onLogout }: { user?: SessionUser; onLogout?: () 
         <a href="/redesign.html" target="_blank" rel="noopener noreferrer" aria-label="Design docs" title="Design docs" className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-muted)] transition hover:bg-[color-mix(in_oklab,var(--color-border)_40%,transparent)] hover:text-[var(--color-text)]">
           <BookOpen size={16} />
         </a>
-        <button onClick={() => setMode(resolved === 'dark' ? 'light' : 'dark')} aria-label="Toggle theme" className="grid h-8 w-8 place-items-center rounded-lg text-[var(--color-muted)] transition hover:bg-[color-mix(in_oklab,var(--color-border)_40%,transparent)] hover:text-[var(--color-text)]">
-          {resolved === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
+        <ThemeMenu />
         {canManageTeam && (
           <button onClick={() => goView('teams')} aria-label="Teams" className={'grid h-8 w-8 place-items-center rounded-lg transition hover:bg-[color-mix(in_oklab,var(--color-border)_40%,transparent)] ' + (view === 'teams' ? 'text-[var(--color-accent)]' : 'text-[var(--color-muted)] hover:text-[var(--color-text)]')}>
             <Users size={16} />
