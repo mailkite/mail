@@ -53,20 +53,20 @@ export function ReplyPanel({
   }
 
   const field =
-    'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
+    'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-2.5 py-1.5 text-[13px] text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]'
 
   return (
-    <div className="flex h-full flex-col bg-[#f7f8fa] dark:bg-[#0b0f1c]">
-      <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/60">
-        <button onClick={onBack} aria-label="Back" className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800">
+    <div className="flex h-full flex-col bg-[var(--color-bg)]">
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-panel)_60%,transparent)] px-4 py-2.5">
+        <button onClick={onBack} aria-label="Back" className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] text-[var(--color-muted)] transition hover:bg-[color-mix(in_oklab,var(--color-border)_40%,transparent)]">
           <ArrowLeft size={14} /> Back
         </button>
-        <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">Reply</span>
+        <span className="text-[13px] font-semibold text-[var(--color-text)]">Reply</span>
         {error && <span className="truncate text-[12px] text-rose-500">{error}</span>}
         <button
           onClick={send}
           disabled={sending || !from || !toAddr || !subject}
-          className="ml-auto flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-50"
+          className="ml-auto flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
         >
           <Send size={13} /> {sending ? 'Sending…' : 'Send'}
         </button>
@@ -77,7 +77,7 @@ export function ReplyPanel({
         <input className={field} placeholder="To" value={toAddr} onChange={(e) => setToAddr(e.target.value)} />
         <input className={field} placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
         <textarea
-          className="min-h-40 flex-1 resize-none rounded-lg border border-slate-200 bg-white p-3 text-[13px] leading-relaxed text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          className="min-h-40 flex-1 resize-none rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] p-3 text-[13px] leading-relaxed text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
           placeholder="Write your reply…"
           value={text}
           onChange={(e) => onText(e.target.value)}

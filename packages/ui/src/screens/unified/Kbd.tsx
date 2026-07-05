@@ -5,7 +5,7 @@ export function Kbd({ children, className }: { children: React.ReactNode; classN
   return (
     <kbd
       className={cn(
-        'inline-grid min-w-[18px] place-items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700',
+        'inline-grid min-w-[18px] place-items-center rounded bg-[color-mix(in_oklab,var(--color-border)_35%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-muted)] ring-1 ring-[var(--color-border)]',
         className,
       )}
     >

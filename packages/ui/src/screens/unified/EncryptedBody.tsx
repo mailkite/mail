@@ -53,7 +53,7 @@ export function EncryptedBody({ htmlBody, textBody }: { htmlBody: string | null;
     return safe ? (
       <div dangerouslySetInnerHTML={{ __html: safe }} />
     ) : (
-      <pre className="whitespace-pre-wrap font-sans text-slate-800 dark:text-slate-200">{textBody}</pre>
+      <pre className="whitespace-pre-wrap font-sans text-[var(--color-text)]">{textBody}</pre>
     )
   }
 
@@ -66,7 +66,7 @@ export function EncryptedBody({ htmlBody, textBody }: { htmlBody: string | null;
         {safe ? (
           <div dangerouslySetInnerHTML={{ __html: safe }} />
         ) : (
-          <pre className="whitespace-pre-wrap font-sans text-slate-800 dark:text-slate-200">{plain.text}</pre>
+          <pre className="whitespace-pre-wrap font-sans text-[var(--color-text)]">{plain.text}</pre>
         )}
       </div>
     )
@@ -120,12 +120,12 @@ function LockedCard({
   }
 
   return (
-    <div className="not-prose rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+    <div className="not-prose rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] p-5">
+      <div className="flex items-center gap-2 text-[var(--color-text)]">
         <LockKeyhole size={16} />
         <span className="text-sm font-semibold">Encrypted at rest</span>
       </div>
-      <p className="mt-1.5 text-[13px] text-slate-500 dark:text-slate-400">
+      <p className="mt-1.5 text-[13px] text-[var(--color-muted)]">
         This message is encrypted to your account key <span className="font-mono">{fp.slice(0, 12)}…</span>. Paste your
         RSA private key to read it — the key stays in this browser and is never sent to the server.
       </p>
@@ -133,7 +133,7 @@ function LockedCard({
       {canRehydrate && (
         <button
           onClick={() => keys.rehydrate(fp)}
-          className="mt-3 rounded-lg bg-indigo-600 px-3 py-1.5 text-[13px] font-semibold text-white transition hover:bg-indigo-500"
+          className="mt-3 rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-[13px] font-semibold text-white transition hover:opacity-90"
         >
           Unlock with remembered key
         </button>
@@ -144,13 +144,13 @@ function LockedCard({
         onChange={(e) => setPem(e.target.value)}
         placeholder="-----BEGIN PRIVATE KEY-----&#10;…&#10;-----END PRIVATE KEY-----"
         spellCheck={false}
-        className="mt-3 h-32 w-full resize-y rounded-lg border border-slate-200 bg-slate-50 p-2.5 font-mono text-xs text-slate-800 outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+        className="mt-3 h-32 w-full resize-y rounded-lg border border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-border)_35%,transparent)] p-2.5 font-mono text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]"
       />
 
-      <label className="mt-2 flex items-center gap-2 text-[13px] text-slate-600 dark:text-slate-300">
+      <label className="mt-2 flex items-center gap-2 text-[13px] text-[var(--color-muted)]">
         <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
         Remember on this device
-        <span className="text-slate-400 dark:text-slate-500">(stored non-extractably; never re-pasted)</span>
+        <span className="text-[var(--color-muted)]">(stored non-extractably; never re-pasted)</span>
       </label>
 
       {(err || decryptErr) && <p className="mt-2 text-[13px] text-rose-600 dark:text-rose-400">{err || decryptErr}</p>}
@@ -158,7 +158,7 @@ function LockedCard({
       <button
         onClick={submit}
         disabled={busy || !pem.trim()}
-        className="mt-3 rounded-lg bg-slate-900 px-4 py-1.5 text-[13px] font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+        className="mt-3 rounded-lg bg-[var(--color-accent)] px-4 py-1.5 text-[13px] font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
       >
         {busy ? 'Decrypting…' : 'Unlock'}
       </button>

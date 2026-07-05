@@ -31,13 +31,13 @@ export function TriageList({
   onAside: (m: MessageRow) => void
 }) {
   return (
-    <div className="flex h-full min-w-0 flex-col bg-[#f7f8fa] dark:bg-[#0b0f1c]">
-      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white/60 px-5 py-2.5 dark:border-slate-800 dark:bg-slate-900/60">
+    <div className="flex h-full min-w-0 flex-col bg-[var(--color-bg)]">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-panel)_60%,transparent)] px-5 py-2.5">
         <div>
-          <h3 className="text-[14px] font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">{subtitle}</p>
+          <h3 className="text-[14px] font-semibold text-[var(--color-text)]">{title}</h3>
+          <p className="text-[11px] text-[var(--color-muted)]">{subtitle}</p>
         </div>
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-1.5 text-[11px] text-[var(--color-muted)]">
           <Kbd>J</Kbd><Kbd>K</Kbd> move<Kbd className="ml-1">E</Kbd> archive
         </div>
       </div>
@@ -87,26 +87,26 @@ function TriageCard({
     <div
       onClick={onOpen}
       className={
-        'group cursor-pointer rounded-xl bg-white p-3 transition hover:shadow-sm dark:bg-slate-900 ' +
+        'group cursor-pointer rounded-xl bg-[var(--color-panel)] p-3 transition hover:shadow-sm ' +
         (active
-          ? 'border-l-2 border-indigo-500 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700'
-          : 'ring-1 ring-slate-200 dark:ring-slate-800')
+          ? 'border-l-2 border-[var(--color-accent)] shadow-sm ring-1 ring-[var(--color-border)]'
+          : 'ring-1 ring-[var(--color-border)]')
       }
     >
       <div className="flex items-center gap-3">
         <Avatar email={m.from_addr} size={36} className="shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <span className={'text-[14px] text-slate-900 dark:text-slate-100 ' + (unread ? 'font-semibold' : 'font-medium')}>
+            <span className={'text-[14px] text-[var(--color-text)] ' + (unread ? 'font-semibold' : 'font-medium')}>
               {senderName(m.from_addr)}
             </span>
-            {unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />}
-            <span className="ml-auto shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{fmtTime(m.received_at)}</span>
+            {unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" />}
+            <span className="ml-auto shrink-0 text-[11px] text-[var(--color-muted)]">{fmtTime(m.received_at)}</span>
           </div>
-          <div className={'truncate text-[13px] ' + (unread ? 'text-slate-800 dark:text-slate-200' : 'text-slate-600 dark:text-slate-400')}>
+          <div className={'truncate text-[13px] ' + (unread ? 'text-[var(--color-text)]' : 'text-[var(--color-muted)]')}>
             {m.subject || '(no subject)'}
           </div>
-          <div className="truncate text-[12px] text-slate-400 dark:text-slate-500">{snippet(m)}</div>
+          <div className="truncate text-[12px] text-[var(--color-muted)]">{snippet(m)}</div>
         </div>
         <div className="flex items-center gap-1.5 opacity-0 transition group-hover:opacity-100">
           <Quick label="↩ Later" onClick={onLater} tone="amber" />
@@ -114,7 +114,7 @@ function TriageCard({
           <button
             onClick={(e) => { e.stopPropagation(); onStar() }}
             aria-label="Star"
-            className="grid h-7 w-7 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 dark:text-slate-500 dark:hover:bg-slate-800"
+            className="grid h-7 w-7 place-items-center rounded-lg text-[var(--color-muted)] hover:bg-[color-mix(in_oklab,var(--color-border)_40%,transparent)]"
           >
             <Star size={14} className={m.starred ? 'fill-amber-400 text-amber-400' : ''} />
           </button>
@@ -128,7 +128,7 @@ function Quick({ label, onClick, tone }: { label: string; onClick: () => void; t
   const cls =
     tone === 'amber'
       ? 'bg-amber-400 text-amber-950 hover:bg-amber-300'
-      : 'bg-slate-100 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-700'
+      : 'bg-[color-mix(in_oklab,var(--color-border)_35%,transparent)] text-[var(--color-text)] ring-1 ring-[var(--color-border)] hover:bg-[color-mix(in_oklab,var(--color-border)_55%,transparent)]'
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick() }}
@@ -141,7 +141,7 @@ function Quick({ label, onClick, tone }: { label: string; onClick: () => void; t
 
 function Placeholder({ text, tone }: { text: string; tone?: 'error' }) {
   return (
-    <div className={'grid place-items-center py-16 text-[13px] ' + (tone === 'error' ? 'text-rose-500' : 'text-slate-400 dark:text-slate-500')}>
+    <div className={'grid place-items-center py-16 text-[13px] ' + (tone === 'error' ? 'text-rose-500' : 'text-[var(--color-muted)]')}>
       {text}
     </div>
   )
