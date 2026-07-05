@@ -5,17 +5,17 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
-  /* Generator defaults = MailKite (default preset), dark mode. These values
+  /* Generator defaults = Midnight (default preset), dark mode. These values
      also generate the color utilities (bg-accent, text-muted, …). Every preset
      re-declares the same vars below, keyed off data-preset / data-theme, which
      ThemeProvider sets on <html>. */
-  --color-bg: #0f172a;
-  --color-panel: #1e293b;
-  --color-border: #334155;
-  --color-text: #f1f5f9;
-  --color-muted: #94a3b8;
-  --color-accent: #00b667;
-  --color-accent-2: #0a6e5c;
+  --color-bg: #0b0d12;
+  --color-panel: #11141b;
+  --color-border: #1e2430;
+  --color-text: #e6e9ef;
+  --color-muted: #8a93a6;
+  --color-accent: #6ea8fe;
+  --color-accent-2: #7c6cff;
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
@@ -30,28 +30,8 @@
    Attribute specificity means these win over the :root @theme defaults, and
    light wins over dark. Falls back to MailKite if no preset attribute is set. */
 
-/* MailKite — brand green (default). */
-html:where([data-preset="mailkite"], :not([data-preset])) {
-  --color-bg: #0f172a;
-  --color-panel: #1e293b;
-  --color-border: #334155;
-  --color-text: #f1f5f9;
-  --color-muted: #94a3b8;
-  --color-accent: #00b667;   /* lighter green reads better on dark */
-  --color-accent-2: #0a6e5c; /* teal-green */
-}
-html:where([data-preset="mailkite"], :not([data-preset]))[data-theme="light"] {
-  --color-bg: #f0eef6;
-  --color-panel: #ffffff;
-  --color-border: #e5e7eb;
-  --color-text: #1a1a2e;
-  --color-muted: #6b7280;
-  --color-accent: #008f4c;   /* brand green */
-  --color-accent-2: #0a6e5c;
-}
-
-/* Midnight — cool indigo / violet. */
-html[data-preset="midnight"] {
+/* Midnight — cool indigo / violet (default). */
+html:where([data-preset="midnight"], :not([data-preset])) {
   --color-bg: #0b0d12;
   --color-panel: #11141b;
   --color-border: #1e2430;
@@ -60,7 +40,7 @@ html[data-preset="midnight"] {
   --color-accent: #6ea8fe;
   --color-accent-2: #7c6cff;
 }
-html[data-preset="midnight"][data-theme="light"] {
+html:where([data-preset="midnight"], :not([data-preset]))[data-theme="light"] {
   --color-bg: #f7f8fa;
   --color-panel: #ffffff;
   --color-border: #e2e8f0; /* slate-200 */
@@ -68,6 +48,26 @@ html[data-preset="midnight"][data-theme="light"] {
   --color-muted: #64748b;  /* slate-500 */
   --color-accent: #4f46e5; /* indigo-600 */
   --color-accent-2: #7c3aed; /* violet-600 */
+}
+
+/* Emerald Forest — brand green. */
+html[data-preset="emerald"] {
+  --color-bg: #0f172a;
+  --color-panel: #1e293b;
+  --color-border: #334155;
+  --color-text: #f1f5f9;
+  --color-muted: #94a3b8;
+  --color-accent: #00b667;   /* lighter green reads better on dark */
+  --color-accent-2: #0a6e5c; /* teal-green */
+}
+html[data-preset="emerald"][data-theme="light"] {
+  --color-bg: #f0eef6;
+  --color-panel: #ffffff;
+  --color-border: #e5e7eb;
+  --color-text: #1a1a2e;
+  --color-muted: #6b7280;
+  --color-accent: #008f4c;   /* brand green */
+  --color-accent-2: #0a6e5c;
 }
 
 /* Paper — warm neutral / amber. */

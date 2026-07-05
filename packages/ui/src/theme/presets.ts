@@ -18,13 +18,6 @@ export interface DesignTheme {
  */
 export const PRESETS: DesignTheme[] = [
   {
-    id: 'mailkite',
-    name: 'MailKite',
-    description: 'Brand green — clean and confident.',
-    bgStyle: 'glow',
-    swatch: { bg: '#f0eef6', panel: '#ffffff', accent: '#008f4c', accent2: '#0a6e5c' },
-  },
-  {
     id: 'midnight',
     name: 'Midnight',
     description: 'Cool indigo — calm and focused.',
@@ -32,15 +25,22 @@ export const PRESETS: DesignTheme[] = [
     swatch: { bg: '#f7f8fa', panel: '#ffffff', accent: '#4f46e5', accent2: '#7c3aed' },
   },
   {
+    id: 'emerald',
+    name: 'Emerald Forest',
+    description: 'Brand green — clean and confident.',
+    bgStyle: 'glow',
+    swatch: { bg: '#f0eef6', panel: '#ffffff', accent: '#008f4c', accent2: '#0a6e5c' },
+  },
+  {
     id: 'paper',
-    name: 'Paper',
+    name: 'Paper Sky',
     description: 'Warm neutral — soft and easy on the eyes.',
     bgStyle: 'solid',
     swatch: { bg: '#faf8f4', panel: '#ffffff', accent: '#b45309', accent2: '#d97706' },
   },
 ]
 
-export const DEFAULT_THEME_ID = 'mailkite'
+export const DEFAULT_THEME_ID = 'midnight'
 
 /** Ids that have a matching palette in global.css. */
 export const PRESET_IDS = PRESETS.map((p) => p.id)
