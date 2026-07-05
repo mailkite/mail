@@ -28,7 +28,7 @@
    `data-preset` and `data-theme` on <html>. The bare (dark) block is the
    theme's dark palette; the [data-theme="light"] block overrides for light.
    Attribute specificity means these win over the :root @theme defaults, and
-   light wins over dark. Falls back to MailKite if no preset attribute is set. */
+   light wins over dark. Falls back to Midnight if no preset attribute is set. */
 
 /* Midnight — cool indigo / violet (default). */
 html:where([data-preset="midnight"], :not([data-preset])) {
@@ -94,6 +94,20 @@ html {
   background-color: var(--color-bg);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Tailwind's Preflight resets buttons to `cursor: default`. Restore the
+   pointer cursor on everything clickable — buttons, links, role="button",
+   labels and summaries. `cursor` inherits, so icons rendered inside these
+   (SVGs, spans) pick it up automatically. Disabled controls stay default. */
+@layer base {
+  button:not(:disabled):not([disabled]),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  label[for],
+  summary {
+    cursor: pointer;
+  }
 }
 
 /* Show the icon for the theme you'd switch *to*. */

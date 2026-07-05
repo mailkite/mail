@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n api,web -c blue,magenta \"tsx watch src/node.ts\" \"vite\"",
-    "dev:api": "tsx watch src/node.ts",
+    "dev": "concurrently -n api,web -c blue,magenta \"tsx watch --env-file-if-exists=.env src/node.ts\" \"vite\"",
+    "dev:api": "tsx watch --env-file-if-exists=.env src/node.ts",
     "dev:web": "vite",
-    "start": "tsx src/node.ts",
+    "start": "tsx --env-file-if-exists=.env src/node.ts",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
