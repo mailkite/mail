@@ -128,10 +128,8 @@ respect.
 
 ### 9. Governing law
 
-This Agreement is governed by the laws applicable to MailKite LLC's place of
-registration, excluding its conflict-of-laws rules. *(MailKite: set the governing
-jurisdiction to match MailKite LLC's registration — e.g. "the State of Delaware,
-USA" — before relying on this clause.)*
+This Agreement is governed by the laws of the State of Wyoming, USA, excluding its
+conflict-of-laws rules.
 
 ---
 
