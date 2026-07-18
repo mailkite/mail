@@ -648,13 +648,41 @@ export function createApp(deps: AppDeps) {
 
   app.get('/api/messages/:id', requireAuth, async (c) => {
     const m = await deps.repo.getMessage(actorOf(c), c.req.param('id')!)
-    return m ? c.json({ message: m }) : c.json({ error: 'not found' }, 404)
+    if (!m) return c.json({ error: 'not found' }, 404)
+    const atts = await deps.repo.attachmentsForMessages([m.id])
+    return c.json({ message: { ...m, attachments: atts.get(m.id) ?? [] } })
   })
 
   // The full conversation for a message — inbound + our sent replies, oldest first.
   app.get('/api/messages/:id/thread', requireAuth, async (c) => {
     const messages = await deps.repo.getThread(actorOf(c), c.req.param('id')!)
-    return messages.length ? c.json({ messages }) : c.json({ error: 'not found' }, 404)
+    if (!messages.length) return c.json({ error: 'not found' }, 404)
+    const atts = await deps.repo.attachmentsForMessages(messages.map((m) => m.id))
+    return c.json({ messages: messages.map((m) => ({ ...m, attachments: atts.get(m.id) ?? [] })) })
+  })
+
+  // Attachment bytes — ACL-scoped through the parent message. Inline for images (so body
+  // `cid:` <img> refs resolve), forced-download for everything else so an HTML/SVG part can't
+  // execute script in our origin. nosniff keeps the browser from re-typing the response.
+  app.get('/api/messages/:id/attachments/:idx', requireAuth, async (c) => {
+    const idx = Number(c.req.param('idx'))
+    if (!Number.isInteger(idx) || idx < 0) return c.json({ error: 'bad index' }, 400)
+    const blob = await deps.repo.getAttachmentBlob(actorOf(c), c.req.param('id')!, idx)
+    if (!blob) return c.json({ error: 'not found' }, 404)
+    const ct = blob.contentType || 'application/octet-stream'
+    const inlineOk = ct.startsWith('image/') && ct !== 'image/svg+xml'
+    const filename = (blob.filename ?? 'attachment').replace(/["\\\r\n]/g, '_')
+    // Uint8Array is a valid BodyInit at runtime (Node/undici + Workers); the cast sidesteps a
+    // TS lib mismatch where Uint8Array<ArrayBufferLike> doesn't structurally match BodyInit.
+    return new Response(blob.bytes as unknown as ArrayBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': ct,
+        'Content-Disposition': `${inlineOk ? 'inline' : 'attachment'}; filename="${filename}"`,
+        'X-Content-Type-Options': 'nosniff',
+        'Cache-Control': 'private, max-age=3600',
+      },
+    })
   })
 
   // Thread-wide flags — archiving from the collapsed list files the whole conversation.

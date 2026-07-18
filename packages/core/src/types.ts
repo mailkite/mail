@@ -4,6 +4,25 @@ export interface WebhookAttachment {
   contentType: string | null
   size: number
   url: string
+  /** MIME Content-ID of an inline part — the HTML body references it as src="cid:<contentId>". */
+  contentId?: string | null
+  /** 'attachment' (a download) | 'inline' (rendered in the body via its contentId). */
+  disposition?: string | null
+}
+
+/** Attachment metadata as the mail UI consumes it: the stored row + a same-origin fetch url.
+ *  `contentId`/`disposition` let the reader map body `cid:` refs to inline parts and tell
+ *  downloads apart from inline images. See EncryptedBody (cid rewrite) + AttachmentList. */
+export interface AttachmentMeta {
+  id: string
+  idx: number
+  filename: string | null
+  contentType: string | null
+  size: number
+  contentId: string | null
+  disposition: string | null
+  /** Relative, ACL-scoped byte url: `/api/messages/:id/attachments/:idx`. */
+  url: string
 }
 
 export interface WebhookAuth {
@@ -48,6 +67,8 @@ export interface MessageRow {
   /** Set only by the collapsed list query: how many messages the thread holds
    *  (within the current folder filter). Absent on single-message reads. */
   thread_count?: number
+  /** Attached parts (inline + downloadable), set by the message-detail/thread reads. */
+  attachments?: AttachmentMeta[]
 }
 
 export type Folder = 'inbox' | 'starred' | 'archive'

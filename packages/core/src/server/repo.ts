@@ -1,6 +1,6 @@
 import type {
   WebhookPayload, MessageRow, MessageFlags, ListOptions, UserRow, UserStatus, Role, SenderAccountRow,
-  Actor, AddressRow, TeamRow, TodoRow,
+  Actor, AddressRow, TeamRow, TodoRow, AttachmentMeta,
 } from '../types'
 import { mapWebhookToMessage } from '../webhook/map'
 import type { SqlDriver, BlobStore } from './ports'
@@ -82,9 +82,9 @@ export class MailRepo {
       const bytes = await opts.fetchAttachment(att.url)
       await this.blobs.put(key, bytes, att.contentType ?? undefined)
       await this.sql.run(
-        `INSERT OR IGNORE INTO attachments (id, message_id, idx, filename, content_type, size, blob_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [att.id, payload.id, i, att.filename, att.contentType, att.size, key],
+        `INSERT OR IGNORE INTO attachments (id, message_id, idx, filename, content_type, size, blob_key, content_id, disposition)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [att.id, payload.id, i, att.filename, att.contentType, att.size, key, att.contentId ?? null, att.disposition ?? null],
       )
     }
 
@@ -155,6 +155,52 @@ export class MailRepo {
       `SELECT * FROM messages WHERE thread_id = ? AND ${scope.sql} ORDER BY received_at ASC`,
       [anchor.thread_id, ...scope.params],
     )
+  }
+
+  /** Attachment metadata for a set of (already-authorized) messages, grouped by message id.
+   *  Callers pass ids from scoped message reads, so no extra ACL is needed here. The `url` is a
+   *  relative, ACL-scoped byte route the browser fetches same-origin. */
+  async attachmentsForMessages(messageIds: string[]): Promise<Map<string, AttachmentMeta[]>> {
+    const map = new Map<string, AttachmentMeta[]>()
+    if (messageIds.length === 0) return map
+    const placeholders = messageIds.map(() => '?').join(',')
+    const rows = await this.sql.all<{
+      id: string; message_id: string; idx: number; filename: string | null
+      content_type: string | null; size: number; content_id: string | null; disposition: string | null
+    }>(
+      `SELECT id, message_id, idx, filename, content_type, size, content_id, disposition
+         FROM attachments WHERE message_id IN (${placeholders}) ORDER BY message_id, idx`,
+      messageIds,
+    )
+    for (const r of rows) {
+      const list = map.get(r.message_id) ?? []
+      list.push({
+        id: r.id, idx: r.idx, filename: r.filename, contentType: r.content_type,
+        size: r.size, contentId: r.content_id, disposition: r.disposition,
+        url: `/api/messages/${encodeURIComponent(r.message_id)}/attachments/${r.idx}`,
+      })
+      map.set(r.message_id, list)
+    }
+    return map
+  }
+
+  /** The bytes of one attachment, ACL-scoped: the parent message is resolved through the Actor
+   *  first (closes IDOR), then the part is looked up by (message, idx) and read from the blob store. */
+  async getAttachmentBlob(
+    actor: Actor,
+    messageId: string,
+    idx: number,
+  ): Promise<{ bytes: Uint8Array; contentType: string | null; filename: string | null } | undefined> {
+    const msg = await this.getMessage(actor, messageId)
+    if (!msg) return undefined
+    const row = await this.sql.get<{ blob_key: string; content_type: string | null; filename: string | null }>(
+      `SELECT blob_key, content_type, filename FROM attachments WHERE message_id = ? AND idx = ?`,
+      [messageId, idx],
+    )
+    if (!row) return undefined
+    const bytes = await this.blobs.get(row.blob_key)
+    if (!bytes) return undefined
+    return { bytes, contentType: row.content_type, filename: row.filename }
   }
 
   /** Persist a message we sent (a reply, or a new thread) into the own store so

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Check, Loader2, LockKeyhole, Reply, RotateCw, Sparkles, Star, X } from 'lucide-react'
-import type { MessageRow } from '@mailkite/core'
+import { ArrowLeft, Check, Loader2, LockKeyhole, Paperclip, Reply, RotateCw, Sparkles, Star, X } from 'lucide-react'
+import type { MessageRow, AttachmentMeta } from '@mailkite/core'
 import { api } from '../../lib/api'
 import { parseEnvelope } from '../../lib/envelope'
 import { EncryptedBody } from './EncryptedBody'
@@ -182,9 +182,49 @@ function ThreadMessage({ m }: { m: MessageRow }) {
         </div>
       )}
       <div className="docs-prose mt-3 text-[var(--color-text)]">
-        <EncryptedBody htmlBody={m.html_body} textBody={m.text_body} />
+        <EncryptedBody htmlBody={m.html_body} textBody={m.text_body} attachments={m.attachments} />
       </div>
+      <AttachmentList attachments={m.attachments} />
     </section>
+  )
+}
+
+// Human-readable file size. Empty string for 0/unknown so the chip can omit it.
+function fmtBytes(n: number): string {
+  if (!n) return ''
+  const units = ['B', 'KB', 'MB', 'GB']
+  let v = n
+  let i = 0
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024
+    i++
+  }
+  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`
+}
+
+// Downloadable-attachment chips below a message. Inline parts (disposition 'inline', already
+// rendered in the body via cid rewriting) are excluded — only true attachments get a link.
+// Each href is the ACL-scoped byte route; `download` hints the filename.
+function AttachmentList({ attachments }: { attachments?: AttachmentMeta[] }) {
+  const files = (attachments ?? []).filter((a) => a.disposition !== 'inline')
+  if (files.length === 0) return null
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {files.map((a) => (
+        <a
+          key={a.id}
+          href={a.url}
+          download={a.filename ?? undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex max-w-[240px] items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[color-mix(in_oklab,var(--color-border)_35%,transparent)] px-2.5 py-1.5 text-xs text-[var(--color-text)] transition hover:bg-[color-mix(in_oklab,var(--color-border)_55%,transparent)]"
+        >
+          <Paperclip size={13} className="shrink-0 text-[var(--color-muted)]" />
+          <span className="truncate font-medium">{a.filename || 'attachment'}</span>
+          {a.size ? <span className="shrink-0 text-[var(--color-muted)]">{fmtBytes(a.size)}</span> : null}
+        </a>
+      ))}
+    </div>
   )
 }
 

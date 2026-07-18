@@ -34,6 +34,8 @@ CREATE INDEX IF NOT EXISTS idx_messages_thread   ON messages (thread_id);
 CREATE INDEX IF NOT EXISTS idx_messages_folder   ON messages (archived, starred, received_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_address  ON messages (address_id, received_at DESC);
 
+-- content_id/disposition (migration 0007) let the reader map body cid: refs to inline
+-- parts and separate inline images from true downloads. Column order matches 0007's ALTERs.
 CREATE TABLE IF NOT EXISTS attachments (
   id           TEXT PRIMARY KEY,
   message_id   TEXT NOT NULL,
@@ -41,7 +43,9 @@ CREATE TABLE IF NOT EXISTS attachments (
   filename     TEXT,
   content_type TEXT,
   size         INTEGER,
-  blob_key     TEXT NOT NULL
+  blob_key     TEXT NOT NULL,
+  content_id   TEXT,
+  disposition  TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments (message_id);
 

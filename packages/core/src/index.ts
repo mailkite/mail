@@ -2,6 +2,7 @@ export type {
   WebhookPayload,
   WebhookAttachment,
   WebhookAuth,
+  AttachmentMeta,
   MessageRow,
   MessageFlags,
   ListOptions,

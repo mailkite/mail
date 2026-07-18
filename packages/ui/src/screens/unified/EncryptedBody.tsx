@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LockKeyhole, LockKeyholeOpen } from 'lucide-react'
-import { sanitizeEmailHtml } from '../../lib/sanitize'
+import type { AttachmentMeta } from '@mailkite/core'
+import { sanitizeEmailHtml, rewriteInlineCids } from '../../lib/sanitize'
 import { parseEnvelope, decryptEnvelopeWithKey } from '../../lib/envelope'
 import { useDecryptionKeys } from '../../lib/decryption-keys'
 
@@ -10,7 +11,15 @@ import { useDecryptionKeys } from '../../lib/decryption-keys'
  * "Encrypted at rest" card until the account holder pastes their private key — then it, and every
  * other message under the same key fingerprint, decrypts in-browser. The key never leaves the tab.
  */
-export function EncryptedBody({ htmlBody, textBody }: { htmlBody: string | null; textBody: string | null }) {
+export function EncryptedBody({
+  htmlBody,
+  textBody,
+  attachments,
+}: {
+  htmlBody: string | null
+  textBody: string | null
+  attachments?: AttachmentMeta[]
+}) {
   const keys = useDecryptionKeys()
   const htmlEnv = useMemo(() => parseEnvelope(htmlBody), [htmlBody])
   const textEnv = useMemo(() => parseEnvelope(textBody), [textBody])
@@ -49,7 +58,7 @@ export function EncryptedBody({ htmlBody, textBody }: { htmlBody: string | null;
 
   // ---- Plaintext (not encrypted) — unchanged rendering path.
   if (!env || !fp) {
-    const safe = htmlBody ? sanitizeEmailHtml(htmlBody) : null
+    const safe = htmlBody ? sanitizeEmailHtml(rewriteInlineCids(htmlBody, attachments)) : null
     return safe ? (
       <div dangerouslySetInnerHTML={{ __html: safe }} />
     ) : (
@@ -59,7 +68,7 @@ export function EncryptedBody({ htmlBody, textBody }: { htmlBody: string | null;
 
   // ---- Encrypted + unlocked → render the decrypted body.
   if (plain) {
-    const safe = plain.html ? sanitizeEmailHtml(plain.html) : null
+    const safe = plain.html ? sanitizeEmailHtml(rewriteInlineCids(plain.html, attachments)) : null
     return (
       <div>
         <UnlockedNote fp={fp} onLock={() => keys.lock(fp)} />
